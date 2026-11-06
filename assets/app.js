@@ -3,10 +3,10 @@
 
   const API_URL = 'https://api.taiwanlottery.com/TLCAPIWeB/Lottery/Daily539Result';
   const CONTENT_KEY = 'daily539Res';
-  const CACHE_KEY = 'm539-final-v7-draw-cache';
+  const CACHE_KEY = 'm539-final-v7-1-draw-cache';
   const CACHE_TTL_MS = 30 * 60 * 1000;
   const REQUEST_TIMEOUT_MS = 15000;
-  const HISTORY_COUNT = 100;
+  const HISTORY_COUNT = 200;
   const PICKER_COUNT = 10;
   const $ = id => document.getElementById(id);
 
