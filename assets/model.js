@@ -221,6 +221,87 @@
     };
   }
 
+  /**
+   * Fifth-draw elimination strategy:
+   * 1) Rank a candidate pool from the start draw's numbers using the historical
+   *    five-draw transition model, trained only on draws older than the start.
+   * 2) Remove any candidate that appeared in the four observed draws after the start.
+   * 3) Keep the original ranking order among survivors and compare with the fifth draw
+   *    after the start when that result is already available.
+   */
+  function calculateFourDrawElimination(drawsNewestFirst, startPeriod, options) {
+    const opts = Object.assign({ candidatePoolSize: 12, priorStrength: 10 }, options || {});
+    const poolSize = Math.max(1, Math.min(39, Number(opts.candidatePoolSize) || 12));
+    const selected = getFiveDayContext(drawsNewestFirst, startPeriod);
+    const { startIndex, startDraw, contextChronological, targetDraw } = selected;
+
+    // Newest-first source, strictly older than the selected start issue.
+    const historicalBeforeStart = drawsNewestFirst.slice(startIndex + 1);
+    if (historicalBeforeStart.length < 6) {
+      throw new Error('起始期以前的歷史資料不足，至少需要6期才能建立後五期轉移排名。');
+    }
+
+    const transition = calculateTransition(historicalBeforeStart, startDraw.numbers, {
+      lookback: historicalBeforeStart.length,
+      priorStrength: opts.priorStrength
+    });
+
+    let candidatePool;
+    let candidateSource = 'model';
+    if (Array.isArray(opts.candidateNumbers) && opts.candidateNumbers.length) {
+      const custom = opts.candidateNumbers.map(Number);
+      if (custom.length > 39 || custom.some(n => !Number.isInteger(n) || n < 1 || n > 39) || new Set(custom).size !== custom.length) {
+        throw new Error('自訂候選排名必須是1～39個不重複的01～39號碼。');
+      }
+      candidateSource = 'custom';
+      candidatePool = custom.map((number, index) => ({ number, score: transition.scores[number], originalRank: index + 1 }));
+    } else {
+      const ranked = NUMBERS.map(number => ({ number, score: transition.scores[number] }))
+        .sort((a, b) => b.score - a.score || a.number - b.number);
+      candidatePool = ranked.slice(0, poolSize).map((item, index) => ({ ...item, originalRank: index + 1 }));
+    }
+
+    // contextChronological is [D0, D1, D2, D3, D4]; D0 is not an exclusion draw.
+    const observedFollowingFour = contextChronological.slice(1);
+    const exclusions = new Map();
+    for (const draw of observedFollowingFour) {
+      for (const number of draw.numbers) {
+        if (!exclusions.has(number)) exclusions.set(number, []);
+        exclusions.get(number).push({ period: draw.period, date: draw.date });
+      }
+    }
+
+    const eliminatedCandidates = candidatePool
+      .filter(item => exclusions.has(item.number))
+      .map(item => ({ ...item, appearedIn: exclusions.get(item.number) }));
+    const survivors = candidatePool
+      .filter(item => !exclusions.has(item.number))
+      .map((item, index) => ({ ...item, finalRank: index + 1 }));
+
+    const actualSet = targetDraw ? new Set(targetDraw.numbers) : null;
+    const originalHits = actualSet ? candidatePool.filter(item => actualSet.has(item.number)).map(item => item.number) : null;
+    const survivorHits = actualSet ? survivors.filter(item => actualSet.has(item.number)).map(item => item.number) : null;
+
+    return {
+      startPeriod: startDraw.period,
+      startDate: startDraw.date,
+      startDraw,
+      contextChronological,
+      observedFollowingFour,
+      targetDraw,
+      trainingDrawCount: historicalBeforeStart.length,
+      transition,
+      candidatePoolSize: candidatePool.length,
+      candidateSource,
+      candidatePool,
+      eliminatedCandidates,
+      excludedNumbers: Array.from(exclusions.keys()).sort((a, b) => a - b),
+      survivors,
+      originalHits,
+      survivorHits
+    };
+  }
+
   function calculateSixWindow(drawsNewestFirst, options) {
     const opts = Object.assign({ windows: WINDOWS, shrinkage: 12 }, options || {});
     const usable = drawsNewestFirst;
@@ -298,6 +379,7 @@
     calculateNextDrawTransition,
     getFiveDayContext,
     calculateFifthDaySequence,
+    calculateFourDrawElimination,
     calculateSixWindow,
     analyze
   };

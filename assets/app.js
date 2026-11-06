@@ -12,6 +12,7 @@
   let isLoading = false;
   let hasUserEditedNumbers = false;
   let lastSequenceResult = null;
+  let lastFourDrawFilterResult = null;
 
   const pad2 = value => String(value).padStart(2, '0');
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -216,12 +217,14 @@
       select.innerHTML = '<option value="">沒有符合條件的起始期</option>';
       select.disabled = true;
       $('fifthDayGenerateBtn').disabled = true;
+    $('fourDrawFilterBtn').disabled = true;
       $('sequencePeriodHelp').textContent = `至少需要 ${MIN_SEQUENCE_WINDOWS} 組歷史訓練序列；請載入更多期數。`;
       return;
     }
     select.innerHTML = eligible.map(item => `<option value="${escapeHtml(item.draw.period)}">${escapeHtml(item.draw.period)}｜${formatDate(item.draw.date)}（歷史訓練 ${item.windows} 組）</option>`).join('');
     select.disabled = false;
     $('fifthDayGenerateBtn').disabled = false;
+    $('fourDrawFilterBtn').disabled = false;
     if (eligible.some(item => String(item.draw.period) === String(previous))) select.value = previous;
     else select.value = eligible[0].draw.period;
     $('sequencePeriodHelp').textContent = `可選 ${eligible.length} 個起始期；每個起始期均已有後續4期開獎，且至少有 ${MIN_SEQUENCE_WINDOWS} 組更早歷史訓練序列。`;
@@ -244,11 +247,16 @@
         <div class="table-scroll"><table class="sequence-table"><thead><tr><th>位置</th><th>期別</th><th>日期</th><th>實際開獎號碼</th></tr></thead><tbody>${rows}</tbody></table></div>
         ${targetLine}`;
       $('sequenceResult').classList.add('hidden');
+      $('fourDrawFilterResult').classList.add('hidden');
       lastSequenceResult = null;
+      lastFourDrawFilterResult = null;
       showNotice('', 'info', 'sequenceNotice');
+      showNotice('', 'info', 'fourDrawFilterNotice');
     } catch (error) {
       $('sequenceContext').innerHTML = `<p class="empty-state">${escapeHtml(error.message)}</p>`;
       $('sequenceResult').classList.add('hidden');
+      $('fourDrawFilterResult').classList.add('hidden');
+      lastFourDrawFilterResult = null;
     }
   }
 
@@ -311,12 +319,109 @@
     }
   }
 
+  function parseOptionalCandidateRanking() {
+    const raw = $('filterCustomRanking').value.trim();
+    if (!raw) return null;
+    const tokens = raw.split(/[\s,，、;；]+/).filter(Boolean);
+    if (!tokens.length || tokens.length > 39 || tokens.some(token => !/^\d{1,2}$/.test(token))) {
+      throw new Error('自訂候選排名請輸入1～39個01～39號碼，以逗號、空格或頓號分隔。');
+    }
+    const numbers = tokens.map(Number);
+    if (numbers.some(number => number < 1 || number > 39) || new Set(numbers).size !== numbers.length) {
+      throw new Error('自訂候選排名必須是01～39且不可重複。');
+    }
+    return numbers;
+  }
+
+  function renderFourDrawFilter(result) {
+    const count = Number($('numberCount').value) || 3;
+    const picks = result.survivors.slice(0, count);
+    $('fourDrawFilterBalls').innerHTML = picks.length
+      ? picks.map((item, index) => `<div class="pick-ball-wrap"><span class="pick-ball">${pad2(item.number)}</span><span class="pick-rank">保留第 ${item.finalRank} 名</span></div>`).join('')
+      : '<p class="empty-state">原始候選池中的號碼已全部被排除，請提高原始候選池名次範圍。</p>';
+
+    const metrics = [
+      ['原始候選池', `${result.candidatePool.length} 碼`],
+      ['後四期排除', `${result.eliminatedCandidates.length} 碼`],
+      ['剩餘候選', `${result.survivors.length} 碼`],
+      ['歷史訓練', `${result.trainingDrawCount} 期`]
+    ];
+    if (result.targetDraw) {
+      metrics.push(['原始池命中', `${result.originalHits.length} 碼`]);
+      metrics.push(['排除後命中', `${result.survivorHits.length} 碼`]);
+    }
+    $('fourDrawFilterSummary').innerHTML = metrics.map(([label, value]) => `
+      <div class="filter-metric"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
+
+    $('fourDrawExcluded').innerHTML = result.eliminatedCandidates.length
+      ? result.eliminatedCandidates.map(item => {
+          const periods = item.appearedIn.map(draw => draw.period).join('、');
+          return `<span class="filter-number removed" title="出現於 ${escapeHtml(periods)}">${pad2(item.number)} <small>${escapeHtml(periods)}</small></span>`;
+        }).join('')
+      : '<span class="empty-state">沒有候選號碼在後四期出現。</span>';
+    $('fourDrawSurvivors').innerHTML = result.survivors.length
+      ? result.survivors.map(item => `<span class="filter-number kept">${pad2(item.number)} <small>第${item.finalRank}名</small></span>`).join('')
+      : '<span class="empty-state">沒有剩餘候選號碼。</span>';
+
+    const actualSet = result.targetDraw ? new Set(result.targetDraw.numbers) : null;
+    const rows = result.candidatePool.map(item => {
+      const eliminated = result.eliminatedCandidates.find(candidate => candidate.number === item.number);
+      const survivor = result.survivors.find(candidate => candidate.number === item.number);
+      const selected = survivor && survivor.finalRank <= count;
+      const appearedIn = eliminated ? eliminated.appearedIn.map(draw => draw.period).join('、') : '';
+      const status = eliminated
+        ? `<span class="filter-status removed-status">已排除（${escapeHtml(appearedIn)}）</span>`
+        : `<span class="filter-status kept-status">保留第 ${survivor.finalRank} 名${selected ? '｜列入本次選號' : ''}</span>`;
+      const actual = actualSet ? (actualSet.has(item.number) ? '<span class="hit-mark">命中</span>' : '—') : '尚未開獎';
+      return `<tr${selected ? ' class="selected-row"' : ''}>
+        <td>${item.originalRank}</td><td><strong>${pad2(item.number)}</strong></td>
+        <td>${(item.score * 100).toFixed(2)}%</td><td>${status}</td><td>${actual}</td></tr>`;
+    }).join('');
+    $('fourDrawFilterTable').innerHTML = `<table><thead><tr><th>原排名</th><th>號碼</th><th>後五期平滑分數</th><th>排除結果</th><th>第五期對獎</th></tr></thead><tbody>${rows}</tbody></table>`;
+
+    const contextPeriods = result.observedFollowingFour.map(draw => draw.period).join(' → ');
+    if (result.targetDraw) {
+      const picksHits = picks.filter(item => actualSet.has(item.number)).map(item => pad2(item.number));
+      showNotice(
+        `歷史回放（${result.candidateSource === 'custom' ? '自訂排名' : '模型排名'}）：${result.startPeriod} 期開出後，觀察 ${contextPeriods}；第五期 ${result.targetDraw.period} 實際開出 ${result.targetDraw.numbers.map(pad2).join('、')}。原始候選池命中 ${result.originalHits.length} 碼；排除後保留 ${result.survivors.length} 碼，其中本次選出的 ${picks.length} 碼命中 ${picksHits.length} 碼${picksHits.length ? `（${picksHits.join('、')}）` : ''}。`,
+        'info', 'fourDrawFilterNotice'
+      );
+    } else {
+      showNotice(
+        `預測模式（${result.candidateSource === 'custom' ? '自訂排名' : '模型排名'}）：起始期 ${result.startPeriod} 後四期（${contextPeriods}）已開出；已排除這四期曾出現的候選號碼，等待第五期開獎驗證。`,
+        'info', 'fourDrawFilterNotice'
+      );
+    }
+    $('fourDrawFilterResult').classList.remove('hidden');
+    lastFourDrawFilterResult = result;
+  }
+
+  function runFourDrawFilterAnalysis() {
+    if (!draws.length || !$('sequencePeriod').value) {
+      showNotice('請先載入歷史資料並選擇起始期別。', 'warning', 'fourDrawFilterNotice');
+      return;
+    }
+    try {
+      const result = window.M539Model.calculateFourDrawElimination(draws, $('sequencePeriod').value, {
+        candidatePoolSize: Number($('filterPoolSize').value) || 12,
+        candidateNumbers: parseOptionalCandidateRanking(),
+        priorStrength: 10
+      });
+      renderFourDrawFilter(result);
+    } catch (error) {
+      $('fourDrawFilterResult').classList.add('hidden');
+      lastFourDrawFilterResult = null;
+      showNotice(error.message || '後四期排除分析失敗。', 'error', 'fourDrawFilterNotice');
+    }
+  }
+
   async function refreshData(force) {
     if (isLoading) return;
     isLoading = true;
     $('refreshBtn').disabled = true;
     $('generateBtn').disabled = true;
     $('fifthDayGenerateBtn').disabled = true;
+    $('fourDrawFilterBtn').disabled = true;
     $('refreshBtn').textContent = '更新中…';
     setStatus('正在抓取台彩歷史資料', 'loading');
     if (!force) showNotice('', 'info');
@@ -355,6 +460,7 @@
       $('generateBtn').disabled = false;
       $('refreshBtn').textContent = '↻ 更新資料';
       $('fifthDayGenerateBtn').disabled = !$('sequencePeriod').value;
+      $('fourDrawFilterBtn').disabled = !$('sequencePeriod').value;
     }
   }
 
@@ -365,10 +471,14 @@
   $('numberCount').addEventListener('change', () => {
     if (draws.length) runAnalysis();
     if (lastSequenceResult) renderSequencePrediction(lastSequenceResult);
+    if (lastFourDrawFilterResult) renderFourDrawFilter(lastFourDrawFilterResult);
   });
   $('modelMode').addEventListener('change', () => { if (draws.length) runAnalysis(); });
   $('sequencePeriod').addEventListener('change', renderSequenceContext);
   $('fifthDayGenerateBtn').addEventListener('click', runFifthDayAnalysis);
+  $('fourDrawFilterBtn').addEventListener('click', runFourDrawFilterAnalysis);
+  $('filterPoolSize').addEventListener('change', runFourDrawFilterAnalysis);
+  $('filterCustomRanking').addEventListener('keydown', event => { if (event.key === 'Enter') runFourDrawFilterAnalysis(); });
   $('triggerInput').addEventListener('input', () => {
     hasUserEditedNumbers = true;
     $('triggerIssue').textContent = '自訂觸發號碼；模型會使用目前載入的歷史資料統計下一期轉移關係。';
