@@ -3,38 +3,39 @@
 
   const API_URL = 'https://api.taiwanlottery.com/TLCAPIWeB/Lottery/Daily539Result';
   const CONTENT_KEY = 'daily539Res';
-  const CACHE_KEY = 'm539-draw-cache-v2';
+  const CACHE_KEY = 'm539-final-v7-draw-cache';
   const CACHE_TTL_MS = 30 * 60 * 1000;
   const REQUEST_TIMEOUT_MS = 15000;
-  const MIN_SEQUENCE_WINDOWS = 20;
+  const HISTORY_COUNT = 100;
+  const PICKER_COUNT = 10;
   const $ = id => document.getElementById(id);
+
   let draws = [];
+  let selectedPeriod = null;
+  let lastResult = null;
   let isLoading = false;
-  let hasUserEditedNumbers = false;
-  let lastSequenceResult = null;
-  let lastFourDrawFilterResult = null;
 
   const pad2 = value => String(value).padStart(2, '0');
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
-  const formatDate = value => {
-    if (!value) return '—';
-    const parts = value.split('-');
-    return `${parts[0]}/${parts[1]}/${parts[2]}`;
-  };
+
+  function formatDate(date) {
+    const match = String(date || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return match ? `${match[1]}/${match[2]}/${match[3]}` : String(date || '—');
+  }
+
+  function monthKey(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  }
 
   function setStatus(message, type) {
     $('statusText').textContent = message;
     $('statusDot').className = `status-dot ${type || 'ok'}`;
   }
 
-  function showNotice(message, type, targetId) {
-    const notice = $(targetId || 'notice');
-    notice.textContent = message || '';
-    notice.className = message ? `notice ${type || 'info'}` : 'notice hidden';
-  }
-
-  function monthKey(date) {
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  function showNotice(message, type, elementId) {
+    const node = $(elementId || 'pickerNotice');
+    node.textContent = message || '';
+    node.className = message ? `notice ${type || 'info'}` : 'notice hidden';
   }
 
   async function fetchMonth(month) {
@@ -67,7 +68,7 @@
     const numbers = raw.map(Number);
     const date = String(row.lotteryDate || '').slice(0, 10);
     const period = String(row.period || '');
-    if (numbers.length !== 5 || numbers.some(n => !Number.isInteger(n) || n < 1 || n > 39)) return null;
+    if (numbers.length !== 5 || numbers.some(number => !Number.isInteger(number) || number < 1 || number > 39)) return null;
     if (new Set(numbers).size !== 5 || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !period) return null;
     return { period, date, numbers: numbers.slice().sort((a, b) => a - b) };
   }
@@ -88,23 +89,21 @@
 
   function writeCache(items) {
     try { localStorage.setItem(CACHE_KEY, JSON.stringify({ savedAt: Date.now(), draws: items })); }
-    catch (_) { /* private browsing or storage quota: continue without persistent cache */ }
+    catch (_) { /* Storage may be unavailable; in-memory data still works. */ }
   }
 
-  async function loadHistory(requestedCount, force) {
+  async function loadHistory(force) {
     const cached = readCache();
-    if (!force && cached && Date.now() - cached.savedAt < CACHE_TTL_MS && cached.draws.length >= requestedCount) {
-      return { draws: cached.draws.slice(0, requestedCount), source: 'cache', cachedAt: cached.savedAt };
+    if (!force && cached && Date.now() - cached.savedAt < CACHE_TTL_MS && cached.draws.length >= HISTORY_COUNT) {
+      return { draws: cached.draws.slice(0, HISTORY_COUNT), source: 'cache', cachedAt: cached.savedAt };
     }
 
     const byPeriod = new Map();
     const cursor = new Date();
     cursor.setDate(1);
     let monthCount = 0;
-    const maxMonths = 60;
-    while (byPeriod.size < requestedCount && monthCount < maxMonths) {
-      const month = monthKey(cursor);
-      const rows = await fetchMonth(month);
+    while (byPeriod.size < HISTORY_COUNT && monthCount < 60) {
+      const rows = await fetchMonth(monthKey(cursor));
       for (const row of rows) {
         const draw = normalizeDraw(row);
         if (draw) byPeriod.set(draw.period, draw);
@@ -114,304 +113,192 @@
     }
 
     const sorted = sortDraws(byPeriod);
-    if (sorted.length < Math.min(requestedCount, 65)) {
-      throw new Error(`目前只取得 ${sorted.length} 期有效紀錄，至少需要 65 期才能執行六窗口分析。`);
+    if (sorted.length < 65) {
+      throw new Error(`目前只取得 ${sorted.length} 期有效紀錄，至少需要65期才能穩定計算。`);
     }
     writeCache(sorted);
-    return { draws: sorted.slice(0, requestedCount), source: 'official-api', cachedAt: Date.now() };
+    return { draws: sorted.slice(0, HISTORY_COUNT), source: 'official-api', cachedAt: Date.now() };
   }
 
-  function parseTriggerInput() {
-    const raw = $('triggerInput').value.trim();
-    const tokens = raw.split(/[\s,，、;；]+/).filter(Boolean);
-    if (tokens.length !== 5) throw new Error('請輸入剛好 5 個號碼，例如：14、20、23、26、29。');
-    if (tokens.some(token => !/^\d{1,2}$/.test(token))) throw new Error('請只輸入 01～39 的數字，使用逗號、空格或頓號分隔。');
-    return window.M539Model.validateTriggers(tokens.map(Number));
-  }
-
-  function fillLatestNumbers() {
-    if (!draws.length) return;
-    $('triggerInput').value = draws[0].numbers.map(pad2).join('、');
-    hasUserEditedNumbers = false;
-    $('triggerIssue').textContent = `已帶入最新一期 ${draws[0].period}（${formatDate(draws[0].date)}）`;
+  function drawBallMarkup(number, extraClass) {
+    return `<span class="mini-ball ${extraClass || ''}">${pad2(number)}</span>`;
   }
 
   function renderLatest() {
     const latest = draws[0];
     $('latestPeriod').textContent = latest ? latest.period : '—';
     $('latestDate').textContent = latest ? formatDate(latest.date) : '尚無資料';
-    $('latestBalls').innerHTML = latest ? latest.numbers.map(n => `<span class="ball small">${pad2(n)}</span>`).join('') : '';
+    $('latestBalls').innerHTML = latest ? latest.numbers.map(number => `<span class="ball small">${pad2(number)}</span>`).join('') : '';
     $('drawCount').textContent = `${draws.length} 期`;
     $('rangeText').textContent = draws.length ? `${formatDate(draws[draws.length - 1].date)} ～ ${formatDate(draws[0].date)}` : '—';
-    $('sourceUpdated').textContent = new Intl.DateTimeFormat('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
-    $('recentRows').innerHTML = draws.slice(0, 8).map(draw => `
-      <tr><td>${escapeHtml(draw.period)}</td><td>${formatDate(draw.date)}</td>
-      <td><div class="inline-balls">${draw.numbers.map(n => `<span class="mini-ball">${pad2(n)}</span>`).join('')}</div></td></tr>`).join('');
   }
 
-  function getModeLabel(mode) {
-    return mode === 'six' ? '六窗口模型' : mode === 'hybrid' ? '綜合模型（下一期轉移70%＋六窗口30%）' : '下一期轉移模型';
+  function getStartIndex(period) {
+    return draws.findIndex(draw => String(draw.period) === String(period));
   }
 
-  function renderPrediction(result) {
-    $('resultTitle').textContent = `候選 ${result.count} 碼`;
-    $('resultMode').textContent = getModeLabel(result.mode);
-    $('resultBalls').innerHTML = result.picks.map((item, index) => `
-      <div class="pick-ball-wrap"><span class="pick-ball">${pad2(item.number)}</span><span class="pick-rank">第 ${index + 1} 名</span></div>`).join('');
+  function isEligibleIndex(index) {
+    return index >= 4 && draws.length - index - 1 >= 6;
+  }
 
-    const support = result.nextDraw.perTrigger.map(item => `${pad2(item.trigger)}：${item.samples} 次`).join('　／　');
-    $('sampleSummary').textContent = `各觸發號碼的歷史有效下一期樣本：${support}。合計 ${result.nextDraw.sampleCount} 次條件樣本。`;
-    $('baselineSummary').textContent = `任意指定號碼在單一期開出的理論基準為 ${(result.nextDraw.priorProbability * 100).toFixed(2)}%；以此作為平滑先驗，並非模型保證。`;
+  function getNextDraws(index) {
+    if (index <= 0) return [];
+    return draws.slice(Math.max(0, index - 4), index).reverse();
+  }
 
-    const tableRows = result.candidates.slice(0, 12).map((item, index) => {
-      const nextText = `${(item.nextDrawRate * 100).toFixed(2)}%`;
-      const windowText = item.sixWindowScore.toFixed(3);
-      const detail = item.perTrigger.map(part => `${pad2(part.trigger)}：${part.hits}/${part.samples || 0}`).join('；');
-      const scoreText = result.mode === 'six' ? item.sixWindowZ.toFixed(3) : result.mode === 'hybrid' ? item.combinedScore.toFixed(3) : nextText;
-      return `<tr${index < result.count ? ' class="selected-row"' : ''}>
-        <td>${index + 1}</td><td><strong>${pad2(item.number)}</strong></td><td>${scoreText}</td>
-        <td>${nextText}</td><td>${windowText}</td><td class="detail-cell" title="${escapeHtml(detail)}">${escapeHtml(detail)}</td></tr>`;
+  function renderDrawOptions() {
+    const recent = draws.slice(0, PICKER_COUNT);
+    $('drawOptions').innerHTML = recent.map((draw, localIndex) => {
+      const index = getStartIndex(draw.period);
+      const laterCount = Math.min(index, 4);
+      const eligible = isEligibleIndex(index);
+      const selected = String(draw.period) === String(selectedPeriod);
+      let stateText = eligible ? (index === 4 ? '可預測｜後四期已齊' : '可回放｜第五期已開') : `後續資料 ${laterCount}/4 期`;
+      if (selected) stateText = '目前選定';
+      return `<button class="draw-option ${selected ? 'selected' : ''}" type="button" data-period="${escapeHtml(draw.period)}" aria-pressed="${selected}">
+        <div class="draw-option-top"><span class="draw-period">${escapeHtml(draw.period)}</span><span class="draw-index">#${localIndex + 1}</span></div>
+        <span class="draw-date">${formatDate(draw.date)}</span>
+        <div class="draw-balls">${draw.numbers.map(number => drawBallMarkup(number)).join('')}</div>
+        <span class="draw-state ${eligible ? '' : 'pending'} ${selected ? 'selected-tag' : ''}">${stateText}</span>
+      </button>`;
     }).join('');
-    $('rankingTable').innerHTML = `<table><thead><tr><th>排名</th><th>號碼</th><th>模型分數</th><th>下一期平滑估計</th><th>六窗口分數</th><th>觸發號碼命中／樣本</th></tr></thead><tbody>${tableRows}</tbody></table>`;
 
-    $('triggerSupport').innerHTML = result.nextDraw.perTrigger.map(item => `
-      <div class="support-card"><div class="support-number">${pad2(item.trigger)}</div>
-      <div><strong>${item.samples} 次有效樣本</strong><small>歷史開出 ${pad2(item.trigger)} 後，觀察緊接著的下一期</small></div></div>`).join('');
+    $('drawOptions').querySelectorAll('.draw-option').forEach(button => {
+      button.addEventListener('click', () => selectPeriod(button.dataset.period));
+    });
+  }
+
+  function renderSelectionContext() {
+    const index = getStartIndex(selectedPeriod);
+    if (index < 0) {
+      $('selectionContext').innerHTML = '<p class="muted">請先選擇起始期。</p>';
+      $('selectedPeriodLabel').textContent = '尚未選擇';
+      $('selectedNumbersLabel').textContent = '—';
+      $('generateBtn').disabled = true;
+      return;
+    }
+
+    const start = draws[index];
+    const later = getNextDraws(index);
+    $('selectedPeriodLabel').textContent = `${start.period}｜${formatDate(start.date)}`;
+    $('selectedNumbersLabel').textContent = `起始號碼：${start.numbers.map(pad2).join('、')}`;
+
+    const contextCards = [`<div class="context-draw start"><span class="context-label">起始期 D0</span><div class="context-period">${escapeHtml(start.period)}</div><div class="context-balls">${start.numbers.map(number => drawBallMarkup(number)).join('')}</div></div>`];
+    for (let step = 0; step < 4; step += 1) {
+      const draw = later[step];
+      contextCards.push(draw
+        ? `<div class="context-draw"><span class="context-label">後續第${step + 1}期 D${step + 1}</span><div class="context-period">${escapeHtml(draw.period)}</div><div class="context-balls">${draw.numbers.map(number => drawBallMarkup(number)).join('')}</div></div>`
+        : `<div class="context-placeholder"><span>後續第${step + 1}期<br>等待開獎</span></div>`);
+    }
+    $('selectionContext').innerHTML = `<div class="selection-context-grid">${contextCards.join('')}</div>`;
+
+    const enoughHistory = draws.slice(index + 1).length >= 6;
+    const eligible = later.length === 4 && enoughHistory;
+    $('generateBtn').disabled = !eligible || isLoading;
+    if (!eligible) {
+      const missing = Math.max(0, 4 - later.length);
+      const warningText = missing > 0
+        ? `你選擇的是 ${start.period} 期。此期之後目前只有 ${later.length} 期已開獎，還需要 ${missing} 期；等後續四期完整後，才能執行「排除後四期」並產生最終候選。`
+        : '起始期以前的歷史資料不足，無法建立轉移排名。';
+      showNotice(warningText, 'warning', 'pickerNotice');
+    } else if (index === 4) {
+      showNotice(`已選定 ${start.period} 期。後續四期已全部開出，第五期尚未開出；現在可以進行預測。`, 'info', 'pickerNotice');
+    } else {
+      const target = draws[index - 5];
+      showNotice(`已選定 ${start.period} 期。這是歷史回放：第五期 ${target.period} 已有實際開獎資料，產生候選後可同時查看命中結果。`, 'info', 'pickerNotice');
+    }
+  }
+
+  function selectPeriod(period) {
+    selectedPeriod = String(period);
+    lastResult = null;
+    $('resultPanel').classList.add('hidden');
+    renderDrawOptions();
+    renderSelectionContext();
+  }
+
+  function renderObservedDraws(result) {
+    const pool = new Set(result.candidatePool.map(item => item.number));
+    $('observedDraws').innerHTML = result.observedFollowingFour.map((draw, index) => {
+      const hits = draw.numbers.filter(number => pool.has(number));
+      return `<div class="observed-card">
+        <strong>D${index + 1} · ${escapeHtml(draw.period)}</strong>
+        <small>${formatDate(draw.date)} · 排除候選 ${hits.length} 碼</small>
+        <div class="observed-balls">${draw.numbers.map(number => drawBallMarkup(number, pool.has(number) ? 'removed' : '')).join('')}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderResult() {
+    if (!lastResult) return;
+    const count = Number($('numberCount').value) || 3;
+    const result = lastResult;
+    const picks = result.survivors.slice(0, count);
+    const actual = result.targetDraw;
+
+    $('resultTitle').textContent = `排除後候選 ${picks.length} 碼`;
+    $('resultSubtitle').textContent = `起始期 ${result.startPeriod}｜原始排名前15碼｜排除D1～D4曾開出的號碼｜依原始排名順序保留。`;
+    $('resultBalls').innerHTML = picks.length
+      ? picks.map((item, index) => `<div class="pick-ball-wrap"><span class="pick-ball">${pad2(item.number)}</span><span class="pick-rank">保留排名 ${item.finalRank}</span></div>`).join('')
+      : '<p class="muted">前15名在後四期都曾出現，沒有剩餘候選號碼。</p>';
+
+    const metrics = [
+      ['歷史訓練期數', `${result.historyDrawCount} 期`],
+      ['原始候選', `${result.candidatePool.length} 碼`],
+      ['被排除', `${result.eliminatedCandidates.length} 碼`],
+      ['剩餘候選', `${result.survivors.length} 碼`],
+      ['本次輸出', `${picks.length}/${count} 碼`]
+    ];
+    if (actual) {
+      metrics.push(['原始池命中', `${result.originalHits.length} 碼`]);
+      metrics.push(['保留池命中', `${result.survivorHits.length} 碼`]);
+    }
+    $('resultMetrics').innerHTML = metrics.map(([label, value]) => `<div class="metric-card"><span>${label}</span><strong>${value}</strong></div>`).join('');
+
+    if (actual) {
+      const hits = picks.filter(item => actual.numbers.includes(item.number)).map(item => pad2(item.number));
+      showNotice(`歷史回放：第五期 ${actual.period} 實際開出 ${actual.numbers.map(pad2).join('、')}；原始前15碼命中 ${result.originalHits.length} 碼，排除後完整候選命中 ${result.survivorHits.length} 碼；本次選出的 ${picks.length} 碼命中 ${hits.length} 碼${hits.length ? `（${hits.join('、')}）` : ''}。`, 'info', 'resultNotice');
+    } else {
+      showNotice('目前是預測模式：第五期尚未開出。資料更新後選回相同起始期，即可進行實際命中驗證。', 'warning', 'resultNotice');
+    }
+
+    renderObservedDraws(result);
+    $('survivorCount').textContent = `${result.survivors.length} 碼保留`;
+    $('survivorList').innerHTML = result.survivors.length
+      ? result.survivors.map((item, index) => `<span class="survivor-pill ${index < count ? 'selected' : ''}">${pad2(item.number)} <small>原第${item.originalRank}名</small></span>`).join('')
+      : '<p class="muted">沒有剩餘候選。</p>';
+
+    const eliminatedByNumber = new Map(result.eliminatedCandidates.map(item => [item.number, item]));
+    const survivorsByNumber = new Map(result.survivors.map(item => [item.number, item]));
+    const actualSet = actual ? new Set(actual.numbers) : null;
+    const rows = result.candidatePool.map(item => {
+      const eliminated = eliminatedByNumber.get(item.number);
+      const survivor = survivorsByNumber.get(item.number);
+      const selected = survivor && survivor.finalRank <= count;
+      const status = eliminated
+        ? `<span class="status-removed">已排除 · ${eliminated.appearedIn.map(draw => escapeHtml(draw.period)).join('、')}</span>`
+        : `<span class="status-kept">保留第${survivor.finalRank}名${selected ? ' · 本次選取' : ''}</span>`;
+      const hit = actualSet ? (actualSet.has(item.number) ? '<strong>命中</strong>' : '—') : '待開獎';
+      return `<tr${selected ? ' class="selected-row"' : ''}><td>${item.originalRank}</td><td><strong>${pad2(item.number)}</strong></td><td>${(item.score * 100).toFixed(2)}%</td><td>${status}</td><td>${hit}</td></tr>`;
+    }).join('');
+    $('rankingTable').innerHTML = `<table><thead><tr><th>原排名</th><th>號碼</th><th>後五期平滑分數</th><th>排除結果</th><th>第五期對獎</th></tr></thead><tbody>${rows}</tbody></table>`;
+
+    $('sampleCards').innerHTML = result.transition.perTrigger.map(item => `
+      <div class="sample-card"><span class="sample-number">${pad2(item.trigger)}</span><div><b>${item.samples} 次有效樣本</b><small>歷史出現後的五期觀察</small></div></div>`).join('');
     $('resultPanel').classList.remove('hidden');
   }
 
   function runAnalysis() {
-    if (!draws.length) {
-      showNotice('歷史資料尚未載入完成，請稍候或按更新資料。', 'warning');
-      return;
-    }
+    if (!selectedPeriod) return;
     try {
-      const triggers = parseTriggerInput();
-      const numberCount = Number($('numberCount').value);
-      const mode = $('modelMode').value;
-      const result = window.M539Model.analyze(draws, triggers, numberCount, mode, {
-        transition: { lookback: draws.length, priorStrength: 10 },
-        sixWindow: { windows: [6, 12, 18, 24, 30, 60], shrinkage: 12 }
-      });
-      renderPrediction(result);
-      showNotice('', 'info');
-    } catch (error) {
-      $('resultPanel').classList.add('hidden');
-      showNotice(error.message || '分析失敗，請檢查輸入內容。', 'error');
-    }
-  }
-
-  function sequenceTrainingWindows(startIndex) {
-    return Math.max(0, draws.length - startIndex - 6);
-  }
-
-  function populateSequencePeriods() {
-    const select = $('sequencePeriod');
-    const previous = select.value;
-    const eligible = [];
-    for (let index = 4; index < draws.length; index += 1) {
-      const windows = sequenceTrainingWindows(index);
-      if (windows >= MIN_SEQUENCE_WINDOWS) eligible.push({ draw: draws[index], index, windows });
-    }
-    if (!eligible.length) {
-      select.innerHTML = '<option value="">沒有符合條件的起始期</option>';
-      select.disabled = true;
-      $('fifthDayGenerateBtn').disabled = true;
-    $('fourDrawFilterBtn').disabled = true;
-      $('sequencePeriodHelp').textContent = `至少需要 ${MIN_SEQUENCE_WINDOWS} 組歷史訓練序列；請載入更多期數。`;
-      return;
-    }
-    select.innerHTML = eligible.map(item => `<option value="${escapeHtml(item.draw.period)}">${escapeHtml(item.draw.period)}｜${formatDate(item.draw.date)}（歷史訓練 ${item.windows} 組）</option>`).join('');
-    select.disabled = false;
-    $('fifthDayGenerateBtn').disabled = false;
-    $('fourDrawFilterBtn').disabled = false;
-    if (eligible.some(item => String(item.draw.period) === String(previous))) select.value = previous;
-    else select.value = eligible[0].draw.period;
-    $('sequencePeriodHelp').textContent = `可選 ${eligible.length} 個起始期；每個起始期均已有後續4期開獎，且至少有 ${MIN_SEQUENCE_WINDOWS} 組更早歷史訓練序列。`;
-    renderSequenceContext();
-  }
-
-  function renderSequenceContext() {
-    if (!draws.length || !$('sequencePeriod').value) return;
-    try {
-      const context = window.M539Model.getFiveDayContext(draws, $('sequencePeriod').value);
-      const chronological = context.contextChronological;
-      const rows = chronological.map((draw, index) => `
-        <tr><td>${index === 0 ? '<span class="sequence-tag start-tag">起始期</span>' : `<span class="sequence-tag">第${index}期</span>`}</td>
-        <td>${escapeHtml(draw.period)}</td><td>${formatDate(draw.date)}</td>
-        <td><div class="inline-balls">${draw.numbers.map(n => `<span class="mini-ball">${pad2(n)}</span>`).join('')}</div></td></tr>`).join('');
-      const targetLine = context.targetDraw
-        ? `<div class="sequence-target known"><strong>第五期實際結果（歷史驗證）：</strong> ${escapeHtml(context.targetDraw.period)}｜${formatDate(context.targetDraw.date)}　${context.targetDraw.numbers.map(pad2).join('、')}</div>`
-        : '<div class="sequence-target pending"><strong>第五期：</strong> 後續四期已完整，下一期尚未開出；模型將預測這一期。</div>';
-      $('sequenceContext').innerHTML = `
-        <div class="table-scroll"><table class="sequence-table"><thead><tr><th>位置</th><th>期別</th><th>日期</th><th>實際開獎號碼</th></tr></thead><tbody>${rows}</tbody></table></div>
-        ${targetLine}`;
-      $('sequenceResult').classList.add('hidden');
-      $('fourDrawFilterResult').classList.add('hidden');
-      lastSequenceResult = null;
-      lastFourDrawFilterResult = null;
-      showNotice('', 'info', 'sequenceNotice');
-      showNotice('', 'info', 'fourDrawFilterNotice');
-    } catch (error) {
-      $('sequenceContext').innerHTML = `<p class="empty-state">${escapeHtml(error.message)}</p>`;
-      $('sequenceResult').classList.add('hidden');
-      $('fourDrawFilterResult').classList.add('hidden');
-      lastFourDrawFilterResult = null;
-    }
-  }
-
-  function renderSequencePrediction(result) {
-    const count = Number($('numberCount').value) || 3;
-    const picks = result.candidates.slice(0, count);
-    $('sequenceResultTitle').textContent = `第五期候選 ${count} 碼`;
-    const contextRange = result.contextChronological.map(draw => draw.period).join(' → ');
-    $('sequenceResultSubtitle').textContent = `起始期 ${result.startPeriod}；輸入序列：${contextRange}。訓練資料只使用起始期以前的歷史。`;
-    $('sequenceResultBalls').innerHTML = picks.map((item, index) => `
-      <div class="pick-ball-wrap"><span class="pick-ball">${pad2(item.number)}</span><span class="pick-rank">第 ${index + 1} 名</span></div>`).join('');
-    $('sequenceSampleSummary').textContent = `${result.trainingWindows} 組歷史五期序列；目前輸入序列有 ${result.contextNumberCount} 個不同號碼作為條件特徵。歷史序列會重疊，非獨立樣本。`;
-    $('sequenceBaselineSummary').textContent = `任意單一號碼在單一期開出的理論基準為 ${(result.priorProbability * 100).toFixed(2)}%；模型分數僅是平滑條件估計。`;
-
-    const actual = result.targetDraw;
-    const actualSet = actual ? new Set(actual.numbers) : null;
-    const hits = actual ? picks.filter(item => actualSet.has(item.number)).map(item => item.number) : [];
-    const tableRows = result.candidates.slice(0, 12).map((item, index) => {
-      const sources = item.contextSupport
-        .slice()
-        .sort((a, b) => b.weight - a.weight)
-        .slice(0, 8)
-        .map(part => `${pad2(part.trigger)} ${part.hits}/${part.samples}`)
-        .join('；');
-      const isHit = actualSet && actualSet.has(item.number);
-      return `<tr${index < count ? ' class="selected-row"' : ''}>
-        <td>${index + 1}</td><td><strong>${pad2(item.number)}</strong></td>
-        <td>${(item.score * 100).toFixed(2)}%</td>
-        <td class="detail-cell" title="${escapeHtml(sources)}">${escapeHtml(sources)}</td>
-        ${actual ? `<td>${isHit ? '<span class="hit-mark">命中</span>' : '—'}</td>` : ''}
-      </tr>`;
-    }).join('');
-    const actualHeader = actual ? '<th>實際結果</th>' : '';
-    $('sequenceRankingTable').innerHTML = `<table><thead><tr><th>排名</th><th>號碼</th><th>模型關聯分數</th><th>主要條件樣本（命中／樣本）</th>${actualHeader}</tr></thead><tbody>${tableRows}</tbody></table>`;
-
-    if (actual) {
-      showNotice(`這是歷史回放驗證：第五期實際開出 ${actual.numbers.map(pad2).join('、')}；你選擇的前 ${count} 碼命中 ${hits.length} 碼${hits.length ? `（${hits.map(pad2).join('、')}）` : ''}。預測訓練資料已排除起始期當日及其後資料。`, 'info', 'sequenceNotice');
-    } else {
-      showNotice('這是目前資料中最新可用的第五期預測：起始期後的四期已開出，第五期尚未開出。等第五期開獎後，可更新資料並選擇相同起始期進行驗證。', 'info', 'sequenceNotice');
-    }
-    $('sequenceResult').classList.remove('hidden');
-    lastSequenceResult = result;
-  }
-
-  function runFifthDayAnalysis() {
-    if (!draws.length || !$('sequencePeriod').value) {
-      showNotice('請先載入歷史資料並選擇起始期別。', 'warning', 'sequenceNotice');
-      return;
-    }
-    try {
-      const result = window.M539Model.calculateFifthDaySequence(draws, $('sequencePeriod').value, {
-        priorStrength: 12,
-        recencyDecay: 0.72,
-        minimumTrainingWindows: MIN_SEQUENCE_WINDOWS
-      });
-      renderSequencePrediction(result);
-    } catch (error) {
-      $('sequenceResult').classList.add('hidden');
-      showNotice(error.message || '第五期序列分析失敗。', 'error', 'sequenceNotice');
-    }
-  }
-
-  function parseOptionalCandidateRanking() {
-    const raw = $('filterCustomRanking').value.trim();
-    if (!raw) return null;
-    const tokens = raw.split(/[\s,，、;；]+/).filter(Boolean);
-    if (!tokens.length || tokens.length > 39 || tokens.some(token => !/^\d{1,2}$/.test(token))) {
-      throw new Error('自訂候選排名請輸入1～39個01～39號碼，以逗號、空格或頓號分隔。');
-    }
-    const numbers = tokens.map(Number);
-    if (numbers.some(number => number < 1 || number > 39) || new Set(numbers).size !== numbers.length) {
-      throw new Error('自訂候選排名必須是01～39且不可重複。');
-    }
-    return numbers;
-  }
-
-  function renderFourDrawFilter(result) {
-    const count = Number($('numberCount').value) || 3;
-    const picks = result.survivors.slice(0, count);
-    $('fourDrawFilterBalls').innerHTML = picks.length
-      ? picks.map((item, index) => `<div class="pick-ball-wrap"><span class="pick-ball">${pad2(item.number)}</span><span class="pick-rank">保留第 ${item.finalRank} 名</span></div>`).join('')
-      : '<p class="empty-state">原始候選池中的號碼已全部被排除，請提高原始候選池名次範圍。</p>';
-
-    const metrics = [
-      ['原始候選池', `${result.candidatePool.length} 碼`],
-      ['後四期排除', `${result.eliminatedCandidates.length} 碼`],
-      ['剩餘候選', `${result.survivors.length} 碼`],
-      ['歷史訓練', `${result.trainingDrawCount} 期`]
-    ];
-    if (result.targetDraw) {
-      metrics.push(['原始池命中', `${result.originalHits.length} 碼`]);
-      metrics.push(['排除後命中', `${result.survivorHits.length} 碼`]);
-    }
-    $('fourDrawFilterSummary').innerHTML = metrics.map(([label, value]) => `
-      <div class="filter-metric"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
-
-    $('fourDrawExcluded').innerHTML = result.eliminatedCandidates.length
-      ? result.eliminatedCandidates.map(item => {
-          const periods = item.appearedIn.map(draw => draw.period).join('、');
-          return `<span class="filter-number removed" title="出現於 ${escapeHtml(periods)}">${pad2(item.number)} <small>${escapeHtml(periods)}</small></span>`;
-        }).join('')
-      : '<span class="empty-state">沒有候選號碼在後四期出現。</span>';
-    $('fourDrawSurvivors').innerHTML = result.survivors.length
-      ? result.survivors.map(item => `<span class="filter-number kept">${pad2(item.number)} <small>第${item.finalRank}名</small></span>`).join('')
-      : '<span class="empty-state">沒有剩餘候選號碼。</span>';
-
-    const actualSet = result.targetDraw ? new Set(result.targetDraw.numbers) : null;
-    const rows = result.candidatePool.map(item => {
-      const eliminated = result.eliminatedCandidates.find(candidate => candidate.number === item.number);
-      const survivor = result.survivors.find(candidate => candidate.number === item.number);
-      const selected = survivor && survivor.finalRank <= count;
-      const appearedIn = eliminated ? eliminated.appearedIn.map(draw => draw.period).join('、') : '';
-      const status = eliminated
-        ? `<span class="filter-status removed-status">已排除（${escapeHtml(appearedIn)}）</span>`
-        : `<span class="filter-status kept-status">保留第 ${survivor.finalRank} 名${selected ? '｜列入本次選號' : ''}</span>`;
-      const actual = actualSet ? (actualSet.has(item.number) ? '<span class="hit-mark">命中</span>' : '—') : '尚未開獎';
-      return `<tr${selected ? ' class="selected-row"' : ''}>
-        <td>${item.originalRank}</td><td><strong>${pad2(item.number)}</strong></td>
-        <td>${(item.score * 100).toFixed(2)}%</td><td>${status}</td><td>${actual}</td></tr>`;
-    }).join('');
-    $('fourDrawFilterTable').innerHTML = `<table><thead><tr><th>原排名</th><th>號碼</th><th>後五期平滑分數</th><th>排除結果</th><th>第五期對獎</th></tr></thead><tbody>${rows}</tbody></table>`;
-
-    const contextPeriods = result.observedFollowingFour.map(draw => draw.period).join(' → ');
-    if (result.targetDraw) {
-      const picksHits = picks.filter(item => actualSet.has(item.number)).map(item => pad2(item.number));
-      showNotice(
-        `歷史回放（${result.candidateSource === 'custom' ? '自訂排名' : '模型排名'}）：${result.startPeriod} 期開出後，觀察 ${contextPeriods}；第五期 ${result.targetDraw.period} 實際開出 ${result.targetDraw.numbers.map(pad2).join('、')}。原始候選池命中 ${result.originalHits.length} 碼；排除後保留 ${result.survivors.length} 碼，其中本次選出的 ${picks.length} 碼命中 ${picksHits.length} 碼${picksHits.length ? `（${picksHits.join('、')}）` : ''}。`,
-        'info', 'fourDrawFilterNotice'
-      );
-    } else {
-      showNotice(
-        `預測模式（${result.candidateSource === 'custom' ? '自訂排名' : '模型排名'}）：起始期 ${result.startPeriod} 後四期（${contextPeriods}）已開出；已排除這四期曾出現的候選號碼，等待第五期開獎驗證。`,
-        'info', 'fourDrawFilterNotice'
-      );
-    }
-    $('fourDrawFilterResult').classList.remove('hidden');
-    lastFourDrawFilterResult = result;
-  }
-
-  function runFourDrawFilterAnalysis() {
-    if (!draws.length || !$('sequencePeriod').value) {
-      showNotice('請先載入歷史資料並選擇起始期別。', 'warning', 'fourDrawFilterNotice');
-      return;
-    }
-    try {
-      const result = window.M539Model.calculateFourDrawElimination(draws, $('sequencePeriod').value, {
-        candidatePoolSize: Number($('filterPoolSize').value) || 12,
-        candidateNumbers: parseOptionalCandidateRanking(),
+      lastResult = window.M539FinalModel.calculateFinalPrediction(draws, selectedPeriod, {
+        candidatePoolSize: 15,
         priorStrength: 10
       });
-      renderFourDrawFilter(result);
+      renderResult();
+      $('resultPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (error) {
-      $('fourDrawFilterResult').classList.add('hidden');
-      lastFourDrawFilterResult = null;
-      showNotice(error.message || '後四期排除分析失敗。', 'error', 'fourDrawFilterNotice');
+      showNotice(error.message || '分析失敗，請重新選擇期別或更新資料。', 'error', 'pickerNotice');
     }
   }
 
@@ -420,70 +307,56 @@
     isLoading = true;
     $('refreshBtn').disabled = true;
     $('generateBtn').disabled = true;
-    $('fifthDayGenerateBtn').disabled = true;
-    $('fourDrawFilterBtn').disabled = true;
     $('refreshBtn').textContent = '更新中…';
     setStatus('正在抓取台彩歷史資料', 'loading');
-    if (!force) showNotice('', 'info');
     try {
-      const requestedCount = Number($('historyCount').value) || 200;
-      const result = await loadHistory(requestedCount, Boolean(force));
-      draws = result.draws;
+      const loaded = await loadHistory(Boolean(force));
+      draws = loaded.draws;
       renderLatest();
-      if (!hasUserEditedNumbers || !$('triggerInput').value.trim()) fillLatestNumbers();
-      populateSequencePeriods();
-      setStatus(result.source === 'cache' ? '使用快取資料' : '歷史資料已更新', 'ok');
-      runAnalysis();
-      if (result.source === 'cache') {
-        showNotice('目前使用瀏覽器快取的歷史資料。按「更新資料」可強制重新向台彩資料介面抓取。', 'info');
+      const recent = draws.slice(0, PICKER_COUNT);
+      const defaultEligible = recent.find((draw, index) => getStartIndex(draw.period) >= 4);
+      if (!selectedPeriod || !recent.some(draw => String(draw.period) === String(selectedPeriod))) {
+        selectedPeriod = defaultEligible ? defaultEligible.period : null;
+      }
+      renderDrawOptions();
+      renderSelectionContext();
+      setStatus(loaded.source === 'cache' ? '使用瀏覽器快取' : '歷史資料已更新', 'ok');
+      if (loaded.source === 'cache') {
+        showNotice(`目前使用瀏覽器快取資料（快取時間：${new Date(loaded.cachedAt).toLocaleString('zh-TW')}）。按「更新資料」可強制重新抓取。`, 'warning', 'pickerNotice');
       } else {
-        showNotice(`已載入 ${draws.length} 期今彩539紀錄。資料由台灣彩券網站資料介面取得；請以官方公告為準。`, 'info');
+        showNotice(`已載入最近 ${draws.length} 期今彩539資料；預設選中最近一個已具備後續四期的起始期。`, 'info', 'pickerNotice');
       }
     } catch (error) {
       console.error(error);
       const cached = readCache();
       if (cached && Array.isArray(cached.draws) && cached.draws.length >= 65) {
-        draws = cached.draws.slice(0, Number($('historyCount').value) || 200);
+        draws = cached.draws.slice(0, HISTORY_COUNT);
         renderLatest();
-        if (!hasUserEditedNumbers || !$('triggerInput').value.trim()) fillLatestNumbers();
-        populateSequencePeriods();
+        const recent = draws.slice(0, PICKER_COUNT);
+        const defaultEligible = recent.find(draw => getStartIndex(draw.period) >= 4);
+        if (!selectedPeriod || !draws.some(draw => String(draw.period) === String(selectedPeriod))) {
+          selectedPeriod = defaultEligible ? defaultEligible.period : null;
+        }
+        renderDrawOptions();
+        renderSelectionContext();
         setStatus('抓取失敗，改用快取', 'error');
-        runAnalysis();
-        showNotice(`無法取得最新資料：${error.message}。目前顯示快取資料（快取時間：${new Date(cached.savedAt).toLocaleString('zh-TW')}），請不要將它視為最新開獎。`, 'warning');
+        showNotice(`即時抓取失敗：${error.message}。目前顯示快取資料，快取時間：${new Date(cached.savedAt).toLocaleString('zh-TW')}。請勿將快取誤認為最新開獎。`, 'warning', 'pickerNotice');
       } else {
         setStatus('資料載入失敗', 'error');
-        showNotice(`無法取得台彩歷史資料：${error.message}。請稍後重試，或檢查瀏覽器是否封鎖跨網域請求。`, 'error');
+        $('drawOptions').innerHTML = '<div class="loading-card">目前無法取得歷史資料，請按「更新資料」重試。</div>';
+        showNotice(`無法取得台彩歷史資料：${error.message}。此網站使用台彩網站資料介面，若跨網域政策或回應格式變更，可能需要更新抓取程式。`, 'error', 'pickerNotice');
       }
     } finally {
       isLoading = false;
       $('refreshBtn').disabled = false;
-      $('generateBtn').disabled = false;
       $('refreshBtn').textContent = '↻ 更新資料';
-      $('fifthDayGenerateBtn').disabled = !$('sequencePeriod').value;
-      $('fourDrawFilterBtn').disabled = !$('sequencePeriod').value;
+      renderSelectionContext();
     }
   }
 
-  $('generateBtn').addEventListener('click', runAnalysis);
   $('refreshBtn').addEventListener('click', () => refreshData(true));
-  $('useLatestBtn').addEventListener('click', fillLatestNumbers);
-  $('historyCount').addEventListener('change', () => refreshData(false));
-  $('numberCount').addEventListener('change', () => {
-    if (draws.length) runAnalysis();
-    if (lastSequenceResult) renderSequencePrediction(lastSequenceResult);
-    if (lastFourDrawFilterResult) renderFourDrawFilter(lastFourDrawFilterResult);
-  });
-  $('modelMode').addEventListener('change', () => { if (draws.length) runAnalysis(); });
-  $('sequencePeriod').addEventListener('change', renderSequenceContext);
-  $('fifthDayGenerateBtn').addEventListener('click', runFifthDayAnalysis);
-  $('fourDrawFilterBtn').addEventListener('click', runFourDrawFilterAnalysis);
-  $('filterPoolSize').addEventListener('change', runFourDrawFilterAnalysis);
-  $('filterCustomRanking').addEventListener('keydown', event => { if (event.key === 'Enter') runFourDrawFilterAnalysis(); });
-  $('triggerInput').addEventListener('input', () => {
-    hasUserEditedNumbers = true;
-    $('triggerIssue').textContent = '自訂觸發號碼；模型會使用目前載入的歷史資料統計下一期轉移關係。';
-  });
-  $('triggerInput').addEventListener('keydown', event => { if (event.key === 'Enter') runAnalysis(); });
+  $('generateBtn').addEventListener('click', runAnalysis);
+  $('numberCount').addEventListener('change', () => { if (lastResult) renderResult(); });
 
   refreshData(false);
 })();
