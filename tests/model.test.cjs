@@ -67,4 +67,58 @@ assert.deepEqual(historical.candidates.map(x => [x.number, x.score]), historical
 
 assert.throws(() => model.calculateFifthDaySequence(history, history[0].period), /後面尚未累積完整4期/);
 
-console.log('539 v6 model tests passed');
+
+// Four-draw elimination: rank from history before D0, then remove candidates seen in D1..D4.
+const exclusionHistory = [
+  draw([1, 2, 3, 4, 5], 115000500),       // D5 target
+  draw([6, 7, 8, 9, 10], 115000499),    // D4
+  draw([11, 12, 13, 14, 15], 115000498),// D3
+  draw([16, 17, 18, 19, 20], 115000497),// D2
+  draw([21, 22, 23, 24, 25], 115000496),// D1
+  draw([35, 36, 37, 38, 39], 115000495),// D0
+  ...Array.from({ length: 60 }, (_, index) => {
+    const base = (index * 9) % 39 + 1;
+    const values = Array.from({ length: 5 }, (_, offset) => ((base + offset * 7 - 1) % 39) + 1);
+    return draw([...new Set(values)].slice(0, 5), 115000494 - index);
+  })
+];
+const exclusion = model.calculateFourDrawElimination(exclusionHistory, '115000495', { candidatePoolSize: 39 });
+assert.equal(exclusion.contextChronological.length, 5);
+assert.deepEqual(exclusion.contextChronological.map(x => x.period), ['115000495','115000496','115000497','115000498','115000499']);
+assert.deepEqual(exclusion.excludedNumbers, Array.from({ length: 20 }, (_, index) => index + 6));
+assert.ok(exclusion.candidatePool.filter(x => x.number >= 6 && x.number <= 25).every(x => exclusion.eliminatedCandidates.some(y => y.number === x.number)));
+assert.ok(exclusion.candidatePool.filter(x => x.number <= 5).every(x => exclusion.survivors.some(y => y.number === x.number)), 'D5 target numbers are not part of the elimination window');
+assert.ok(exclusion.candidatePool.filter(x => x.number >= 35).every(x => exclusion.survivors.some(y => y.number === x.number)), 'D0-only numbers must not be excluded');
+assert.equal(exclusion.targetDraw.period, '115000500');
+const changedExclusionTarget = exclusionHistory.map((item, index) => index === 0 ? draw([30, 31, 32, 33, 34], item.period, item.date) : item);
+const changedExclusion = model.calculateFourDrawElimination(changedExclusionTarget, '115000495', { candidatePoolSize: 39 });
+assert.deepEqual(exclusion.candidatePool.map(x => [x.number, x.score]), changedExclusion.candidatePool.map(x => [x.number, x.score]), 'fifth-draw result must not leak into ranking');
+assert.deepEqual(exclusion.survivors.map(x => x.number), changedExclusion.survivors.map(x => x.number));
+
+
+// Reproduce the supplied 115000264 example using its manually ranked 12 candidates.
+const userExampleHistory = [
+  draw([14, 20, 23, 26, 29], 115000269),
+  draw([20, 28, 32, 36, 37], 115000268),
+  draw([2, 8, 18, 33, 39], 115000267),
+  draw([5, 10, 30, 32, 34], 115000266),
+  draw([29, 31, 33, 35, 38], 115000265),
+  draw([2, 5, 17, 28, 37], 115000264),
+  ...Array.from({ length: 60 }, (_, index) => {
+    const base = (index * 11) % 39 + 1;
+    const values = Array.from({ length: 5 }, (_, offset) => ((base + offset * 5 - 1) % 39) + 1);
+    return draw([...new Set(values)].slice(0, 5), 115000263 - index);
+  })
+];
+const userExampleRanking = [14, 19, 5, 31, 34, 2, 38, 30, 29, 7, 12, 28];
+const userExample = model.calculateFourDrawElimination(userExampleHistory, '115000264', {
+  candidatePoolSize: 12,
+  candidateNumbers: userExampleRanking
+});
+assert.deepEqual(userExample.candidatePool.map(x => x.number), userExampleRanking);
+assert.deepEqual(userExample.eliminatedCandidates.map(x => x.number), [5, 31, 34, 2, 38, 30, 29, 28]);
+assert.deepEqual(userExample.survivors.map(x => x.number), [14, 19, 7, 12]);
+assert.deepEqual(userExample.originalHits, [14, 29]);
+assert.deepEqual(userExample.survivorHits, [14]);
+
+console.log('539 v6.1 model tests passed');
