@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#101a2b">
-  <meta name="description" content="539 數據研究室：自動抓取今彩539歷史開獎資料，提供下一期轉移、第五期序列、後四期號碼排除及六窗口分析。">
-  <title>539 數據研究室 v6.1｜第五期與後四期排除分析</title>
+  <meta name="theme-color" content="#0a1220">
+  <meta name="description" content="539 數據研究室：選擇最近10期其中一期，以後五期歷史轉移排名前15碼，排除後續四期已開號碼，產生1至5碼候選。">
+  <title>539 數據研究室｜前15碼・排除後四期</title>
   <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
@@ -13,202 +13,132 @@
     <header class="topbar">
       <a class="brand" href="./" aria-label="539 數據研究室首頁">
         <span class="brand-mark">539</span>
-        <span class="brand-text"><strong>539 DATA LAB</strong><small>HISTORY · TRANSITION · RESEARCH</small></span>
+        <span class="brand-text"><strong>539 DATA LAB</strong><small>TOP 15 · FOUR-DRAW ELIMINATION</small></span>
       </a>
       <div class="top-actions">
         <div class="status-pill"><i id="statusDot" class="status-dot loading"></i><span id="statusText">正在載入歷史資料</span></div>
-        <button id="refreshBtn" class="button button-gold" type="button">↻ 更新資料</button>
+        <button id="refreshBtn" class="button button-outline" type="button">↻ 更新資料</button>
       </div>
     </header>
 
     <section class="hero">
       <div>
         <div class="eyebrow">TAIWAN LOTTERY · DAILY 539</div>
-        <h1>從歷史開獎序列，<br><span>研究下一期與第五期。</span></h1>
-        <p class="hero-copy">支援下一期條件轉移、六窗口統計、第五期序列，以及「先排名、再排除後四期已開號碼」的候選縮減分析。</p>
+        <h1>選一期開獎號碼，<br><span>排除後四期，再產生候選。</span></h1>
+        <p class="hero-copy">固定使用歷史後五期轉移排名前15碼，排除起始期之後四期已經開出的號碼。選擇最後10期其中一組，並決定輸出1～5碼。</p>
       </div>
       <div class="hero-card">
-        <div class="hero-card-label">目前資料狀態</div>
+        <div class="hero-card-label">最新資料</div>
         <div class="hero-latest"><strong id="latestPeriod">—</strong><span id="latestDate">等待資料</span></div>
         <div class="hero-latest-balls" id="latestBalls"></div>
-        <div class="hero-foot"><span>有效歷史期數</span><strong id="drawCount">—</strong></div>
-        <div class="hero-foot"><span>資料涵蓋日期</span><strong id="rangeText">—</strong></div>
+        <div class="hero-foot"><span>目前載入期數</span><strong id="drawCount">—</strong></div>
+        <div class="hero-foot"><span>資料涵蓋區間</span><strong id="rangeText">—</strong></div>
       </div>
     </section>
 
-    <section class="panel input-panel">
-      <div class="panel-heading">
-        <div><div class="eyebrow">PREDICTION INPUT</div><h2>下一期預測</h2><p>輸入最近一期的五個不重複號碼（01～39），估算各號碼在緊接著的下一期出現情況。也可切換六窗口或綜合模型。</p></div>
-        <span class="panel-chip">自動更新歷史資料</span>
-      </div>
-      <div class="input-grid">
-        <div class="input-main">
-          <label for="triggerInput">觸發號碼</label>
-          <div class="trigger-row">
-            <input id="triggerInput" type="text" inputmode="numeric" autocomplete="off" placeholder="例如：14、20、23、26、29" aria-describedby="triggerHelp">
-            <button id="useLatestBtn" class="button button-outline" type="button">帶入最新一期</button>
-          </div>
-          <small id="triggerHelp" class="field-help">可使用逗號、空格或頓號分隔。網站初次載入會自動帶入最新一期號碼。</small>
-          <small id="triggerIssue" class="field-note">尚未帶入期別</small>
+    <section class="panel picker-panel">
+      <div class="section-heading">
+        <div>
+          <div class="eyebrow">STEP 01 · CHOOSE A DRAW</div>
+          <h2>選擇最近10期其中一期</h2>
+          <p>點選你要當作起始期（D0）的那一組五個號碼。系統會顯示該期之後的四期資料。</p>
         </div>
-        <div class="input-side">
-          <div class="field-group">
-            <label for="numberCount">產生號碼數量</label>
-            <select id="numberCount">
-              <option value="1">1 個號碼</option>
-              <option value="2">2 個號碼</option>
-              <option value="3" selected>3 個號碼</option>
-              <option value="4">4 個號碼</option>
-              <option value="5">5 個號碼</option>
-            </select>
-          </div>
-          <div class="field-group">
-            <label for="modelMode">推算模式</label>
-            <select id="modelMode">
-              <option value="next" selected>下一期轉移模型</option>
-              <option value="six">六窗口統計模型</option>
-              <option value="hybrid">綜合模型（下一期轉移70%＋窗口30%）</option>
-            </select>
-          </div>
-          <div class="field-group">
-            <label for="historyCount">歷史資料範圍</label>
-            <select id="historyCount">
-              <option value="100">最近100期</option>
-              <option value="200" selected>最近200期</option>
-              <option value="300">最近300期</option>
-              <option value="500">最近500期</option>
-            </select>
-          </div>
-          <button id="generateBtn" class="button button-gold button-wide" type="button">開始分析並產生號碼</button>
-        </div>
+        <span class="fixed-chip">最近100期資料 · 自動更新</span>
       </div>
-      <div id="notice" class="notice hidden" role="status"></div>
+      <div id="drawOptions" class="draw-options" aria-label="最近10期開獎號碼選擇">
+        <div class="loading-card">正在讀取最近10期開獎號碼…</div>
+      </div>
+      <div id="selectionContext" class="selection-context">
+        <p class="muted">載入歷史資料後，這裡會顯示所選起始期及後續四期開獎資料。</p>
+      </div>
+      <div id="pickerNotice" class="notice hidden" role="status"></div>
+    </section>
+
+    <section class="panel controls-panel">
+      <div class="section-heading">
+        <div>
+          <div class="eyebrow">STEP 02 · GENERATE</div>
+          <h2>產生候選號碼</h2>
+          <p>演算方式已固定，不提供其他模型或排除期數選項。</p>
+        </div>
+        <span class="fixed-chip">原始排名前15碼 → 排除後四期</span>
+      </div>
+      <div class="control-row">
+        <div class="selected-summary">
+          <span>目前選定起始期</span>
+          <strong id="selectedPeriodLabel">尚未選擇</strong>
+          <small id="selectedNumbersLabel">—</small>
+        </div>
+        <div class="count-control">
+          <label for="numberCount">要產生幾個號碼？</label>
+          <select id="numberCount">
+            <option value="1">1 碼</option>
+            <option value="2">2 碼</option>
+            <option value="3" selected>3 碼</option>
+            <option value="4">4 碼</option>
+            <option value="5">5 碼</option>
+          </select>
+        </div>
+        <button id="generateBtn" class="button button-gold generate-button" type="button" disabled>產生候選號碼</button>
+      </div>
+      <div class="method-strip">
+        <span><b>01</b> 歷史後五期轉移計分</span>
+        <span><b>02</b> 取前15名候選</span>
+        <span><b>03</b> 排除D1～D4已開號碼</span>
+        <span><b>04</b> 保留原排名輸出1～5碼</span>
+      </div>
     </section>
 
     <section id="resultPanel" class="panel result-panel hidden">
-      <div class="panel-heading result-heading">
-        <div><div class="eyebrow">MODEL OUTPUT</div><h2 id="resultTitle">候選 3 碼</h2><p>依模型分數由高到低排序；選擇的號碼數量可隨時調整。</p></div>
-        <span id="resultMode" class="panel-chip">下一期轉移模型</span>
+      <div class="section-heading result-heading">
+        <div>
+          <div class="eyebrow">STEP 03 · RESULT</div>
+          <h2 id="resultTitle">本次候選號碼</h2>
+          <p id="resultSubtitle">依照原始排名順序，排除後四期出現過的候選號碼。</p>
+        </div>
+        <span id="resultMode" class="fixed-chip">TOP 15 · EXCLUDE 4 DRAWS</span>
       </div>
       <div id="resultBalls" class="result-balls"></div>
-      <div class="result-meta">
-        <div class="meta-card"><span>下一期轉移樣本</span><strong id="sampleSummary">計算中</strong></div>
-        <div class="meta-card"><span>理論比較基準</span><strong id="baselineSummary">計算中</strong></div>
+      <div id="resultNotice" class="notice hidden" role="status"></div>
+      <div id="resultMetrics" class="metrics-grid"></div>
+
+      <div class="result-section">
+        <div class="subheading"><div><h3>後續四期開獎與排除紀錄</h3><p>只要號碼在D1～D4任一期出現，就從原始前15碼中移除；D0不參與排除。</p></div></div>
+        <div id="observedDraws" class="observed-grid"></div>
       </div>
-      <div class="support-section">
-        <h3>五個觸發號碼的歷史下一期樣本數</h3>
-        <div id="triggerSupport" class="support-grid"></div>
+
+      <div class="result-section">
+        <div class="subheading"><div><h3>排除後保留的候選號碼</h3><p>維持原始模型排序，不重新計算剩餘號碼的名次。</p></div><span id="survivorCount" class="count-chip">—</span></div>
+        <div id="survivorList" class="survivor-list"></div>
       </div>
-      <div class="table-section">
-        <div class="table-heading"><div><h3>候選號碼排名</h3><p>下一期轉移估計是歷史條件比例的平滑值；六窗口分數是標準化頻率偏差，兩者都不是保證命中率。</p></div><span class="table-badge">TOP 12</span></div>
+
+      <div class="result-section">
+        <div class="subheading"><div><h3>原始前15名完整排名</h3><p>分數是後五期至少出現一次的歷史平滑比例，不代表未來真實中獎機率。</p></div><span class="count-chip">TOP 15</span></div>
         <div id="rankingTable" class="table-scroll"></div>
       </div>
-    </section>
 
-
-    <section class="panel sequence-panel">
-      <div class="panel-heading">
-        <div>
-          <div class="eyebrow">FIFTH-DAY SEQUENCE MODEL</div>
-          <h2>第五期序列分析</h2>
-          <p>選定一個起始期，系統讀取該期及其後四個開獎期已開出的號碼（共五期），再用更早的歷史序列學習條件關係，推算起始期之後的第五個開獎期。</p>
-        </div>
-        <span class="panel-chip">觀察後4期，推算第5期</span>
-      </div>
-      <div class="sequence-controls">
-        <div class="field-group">
-          <label for="sequencePeriod">選定起始期別／日期</label>
-          <select id="sequencePeriod" disabled><option>等待歷史資料</option></select>
-          <small id="sequencePeriodHelp" class="field-help">預設選取最近一個已具備後續4個開獎期資料的起始期。</small>
-        </div>
-        <div class="sequence-action">
-          <div class="sequence-count-note">輸出數量沿用上方「產生號碼數量」（1～5碼）。</div>
-          <button id="fifthDayGenerateBtn" class="button button-gold button-wide" type="button" disabled>分析第五期候選號碼</button>
-        </div>
-      </div>
-      <div id="sequenceContext" class="sequence-context"><p class="empty-state">歷史資料載入後，會在這裡顯示起始期及後續四個開獎期的實際開獎號碼。</p></div>
-      <div id="sequenceNotice" class="notice hidden" role="status"></div>
-      <div id="sequenceResult" class="sequence-result hidden">
-        <div class="sequence-result-heading">
-          <div><h3 id="sequenceResultTitle">第五期候選號碼</h3><p id="sequenceResultSubtitle"></p></div>
-          <span class="table-badge">FIFTH-DAY FORECAST</span>
-        </div>
-        <div id="sequenceResultBalls" class="result-balls"></div>
-        <div class="result-meta">
-          <div class="meta-card"><span>歷史訓練序列</span><strong id="sequenceSampleSummary">—</strong></div>
-          <div class="meta-card"><span>單期隨機理論基準</span><strong id="sequenceBaselineSummary">—</strong></div>
-        </div>
-        <div class="table-section">
-          <div class="table-heading"><div><h3>第五期候選排名</h3><p>依照五期輸入序列的號碼關聯分數排序；不是保證開出機率。</p></div><span class="table-badge">TOP 12</span></div>
-          <div id="sequenceRankingTable" class="table-scroll"></div>
-        </div>
-      </div>
-
-      <div class="filter-sequence-block">
-        <div class="filter-sequence-heading">
-          <div>
-            <div class="eyebrow">FOUR-DRAW ELIMINATION</div>
-            <h3>後四期已開號碼排除法</h3>
-            <p>先用起始期的五個號碼建立歷史「後五期」候選排名，再把起始期之後第1～4期已出現的候選號碼刪除，保留原排名順序，推算第5期。</p>
-          </div>
-          <span class="table-badge">TOP POOL → REMOVE → FORECAST</span>
-        </div>
-        <div class="filter-sequence-controls">
-          <div class="field-group">
-            <label for="filterPoolSize">原始候選池</label>
-            <select id="filterPoolSize">
-              <option value="8">原始排名前8名</option>
-              <option value="10">原始排名前10名</option>
-              <option value="12" selected>原始排名前12名</option>
-              <option value="15">原始排名前15名</option>
-              <option value="20">原始排名前20名</option>
-              <option value="39">全部39碼</option>
-            </select>
-          </div>
-          <div class="field-group">
-            <label for="filterCustomRanking">自訂原始候選排名（選填）</label>
-            <input id="filterCustomRanking" type="text" inputmode="numeric" autocomplete="off" placeholder="例如：14、19、05、31、34、02、38、30、29、07、12、28">
-            <small class="field-help">留空使用模型自動排名；填入則完全依照你提供的順序進行排除。</small>
-          </div>
-          <div class="filter-sequence-action">
-            <small>最終選號數量沿用上方設定（1～5碼）；下方仍會列出全部存活候選。</small>
-            <button id="fourDrawFilterBtn" class="button button-gold button-wide" type="button" disabled>分析並排除後四期重複號碼</button>
-          </div>
-        </div>
-        <div id="fourDrawFilterNotice" class="notice hidden" role="status"></div>
-        <div id="fourDrawFilterResult" class="filter-sequence-result hidden">
-          <div id="fourDrawFilterBalls" class="result-balls"></div>
-          <div id="fourDrawFilterSummary" class="filter-summary-grid"></div>
-          <div class="filter-audit-grid">
-            <div class="filter-audit-card"><h4>已排除候選</h4><div id="fourDrawExcluded"></div></div>
-            <div class="filter-audit-card"><h4>排除後保留</h4><div id="fourDrawSurvivors"></div></div>
-          </div>
-          <div class="table-section">
-            <div class="table-heading"><div><h3>原始排名及排除紀錄</h3><p>排除只依據起始期之後四期的實際開獎號碼；起始期本身不列入排除。</p></div><span class="table-badge">AUDIT</span></div>
-            <div id="fourDrawFilterTable" class="table-scroll"></div>
-          </div>
-        </div>
+      <div class="result-section">
+        <div class="subheading"><div><h3>五個觸發號碼的歷史樣本</h3><p>分別搜尋每個號碼在歷史上出現後，接下來五期出現過哪些號碼。</p></div></div>
+        <div id="sampleCards" class="sample-grid"></div>
       </div>
     </section>
 
-    <section class="lower-grid">
-      <article class="panel method-panel">
-        <div class="eyebrow">MODEL NOTES</div><h2>演算邏輯</h2>
-        <div class="method-item"><b>01 / 下一期轉移模型</b><p>逐一搜尋輸入號碼在歷史上的出現位置，統計緊接著下一期的開獎號碼，估算條件關聯。</p></div>
-        <div class="method-item"><b>02 / 第五期序列模型</b><p>選定起始期，輸入該期及後續四期的實際開獎號碼；以更早的歷史五期序列及其下一期作訓練，推算第五期之後的結果。訓練資料嚴格截止於起始期之前。</p></div>
-        <div class="method-item"><b>03 / 六窗口模型</b><p>同時計算最近6、12、18、24、30、60期的標準化頻率偏差，並對短窗口分數收縮，降低小樣本波動。</p></div>
-        <div class="method-item"><b>04 / 後四期已開號碼排除法</b><p>先以起始期五個號碼計算歷史後五期轉移分數，取得前N名候選；再刪除起始期後第1～4期曾開出的候選號碼，保留順位推算第5期。</p></div>
-        <div class="method-item"><b>05 / 綜合模型</b><p>將下一期轉移分數與六窗口分數各自標準化後，以70%下一期轉移及30%六窗口分數合成排序。</p></div>
-      </article>
-      <article class="panel recent-panel">
-        <div class="eyebrow">LATEST HISTORY</div><h2>最新開獎紀錄</h2><p class="panel-subtitle">由新到舊顯示最近8期資料。</p>
-        <div class="table-scroll"><table class="recent-table"><thead><tr><th>期別</th><th>日期</th><th>開獎號碼</th></tr></thead><tbody id="recentRows"><tr><td colspan="3">等待資料</td></tr></tbody></table></div>
-        <div class="updated-line">本次頁面更新時間 <strong id="sourceUpdated">—</strong></div>
-      </article>
+    <section class="panel method-panel">
+      <div class="eyebrow">FIXED MODEL · HOW IT WORKS</div>
+      <h2>目前唯一使用的推算流程</h2>
+      <div class="method-flow">
+        <div class="method-step"><span>01</span><div><b>選定起始期 D0</b><p>從畫面最新10期中選擇一組開獎號碼，作為五個觸發號碼。</p></div></div>
+        <div class="method-step"><span>02</span><div><b>建立原始候選排名</b><p>只使用D0以前的歷史資料。分別計算五個觸發號碼出現後，未來五期每個號碼至少出現一次的比例；五個觸發號碼等權平均，加入理論基準平滑，再取前15名。</p></div></div>
+        <div class="method-step"><span>03</span><div><b>排除後續四期 D1～D4</b><p>將D1、D2、D3、D4已經出現過的號碼，從原始前15碼移除。D0本身不排除，也不把D5結果放進計算。</p></div></div>
+        <div class="method-step"><span>04</span><div><b>依需求輸出1～5碼</b><p>保留剩餘號碼的原始排名順序，選出前1～5碼。若剩餘號碼不足，會如實顯示實際可選數量，不補入已排除號碼。</p></div></div>
+      </div>
+      <div class="disclaimer"><strong>研究提醒：</strong>今彩539每期開獎是隨機事件。歷史轉移與排除規則不會改變下一期的真實開獎機率；當後四期已開出後才可執行此方法，因此選定最近10期中最新的4期時，資料尚未完整，必須等待後續開獎。請勿把歷史關聯當成保證命中或追號依據。</div>
     </section>
 
-    <aside class="disclaimer"><strong>重要提醒：</strong>今彩539每期開獎是隨機事件，歷史轉移關係、序列特徵、頻率及模型分數不能改變未來開獎機率。第五期序列訓練樣本彼此可能重疊，不能視為獨立事件；模型排名也不代表實際中獎機率。請勿把歷史巧合視為規律，也不要追號或加碼。</aside>
-    <footer><span>539 DATA LAB · 非台灣彩券官方網站</span><span>資料來源：<a href="https://www.taiwanlottery.com/lotto/history/history_result/" target="_blank" rel="noopener noreferrer">台灣彩券歷史開獎查詢</a></span></footer>
+    <footer>
+      <span>539 DATA LAB · 個人統計研究工具，非台灣彩券官方網站</span>
+      <span>資料來源：<a href="https://www.taiwanlottery.com/lotto/history/history_result/" target="_blank" rel="noopener noreferrer">台灣彩券歷史開獎查詢</a></span>
+    </footer>
   </main>
   <script src="assets/model.js"></script>
   <script src="assets/app.js"></script>
