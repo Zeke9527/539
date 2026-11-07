@@ -9,13 +9,13 @@ function makeDraws(count = 100) {
   }).reverse();
 }
 const draws = makeDraws();
-assert.deepEqual(model.SUPPORTED_HISTORY_WINDOWS, [12]);
-const result = model.calculateFinalPrediction(draws, draws[4].period, {historyWindow:12});
-assert.equal(result.historyDrawCount, 12);
-assert.equal(result.historyWindow, 12);
-assert.equal(result.trainingRange.newest.period, draws[5].period);
-assert.equal(result.trainingRange.oldest.period, draws[16].period);
-assert.equal(result.candidatePool.length, 15);
-assert.equal(result.observedFollowingFour.length, 4);
-assert.throws(() => model.calculateFinalPrediction(draws, draws[4].period, {historyWindow:18}), /固定為12期/);
-console.log('PASS: fixed 12-draw training window with D1-D4 elimination.');
+for (const mode of [{historyWindow:35, exclusionCount:3, pickCount:2}, {historyWindow:49, exclusionCount:4, pickCount:2}]) {
+  const result = model.calculateFinalPrediction(draws, draws[mode.exclusionCount].period, mode);
+  assert.equal(result.historyDrawCount, mode.historyWindow);
+  assert.equal(result.historyWindow, mode.historyWindow);
+  assert.equal(result.exclusionCount, mode.exclusionCount);
+  assert.equal(result.pickCount, 2);
+  assert.equal(result.contextChronological.length, mode.exclusionCount + 1);
+  assert.equal(result.observedFollowing.length, mode.exclusionCount);
+}
+console.log('PASS: both preset training and exclusion windows.');
