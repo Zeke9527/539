@@ -1,0 +1,13 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const html = fs.readFileSync(require.resolve('../index.html'), 'utf8');
+const app = fs.readFileSync(require.resolve('../assets/app.js'), 'utf8');
+const model = fs.readFileSync(require.resolve('../assets/model.js'), 'utf8');
+assert.match(html, /assets\/styles\.css\?v=7\.3\.0/);
+assert.match(html, /assets\/model\.js\?v=7\.3\.0/);
+assert.match(html, /assets\/app\.js\?v=7\.3\.0/);
+assert.match(html, /id="appVersion"/);
+assert.match(app, /const APP_VERSION = 'v7\.3\.0'/);
+assert.match(app, /m539-final-v7-3-draw-cache/);
+assert.match(model, /trainingRange/);
+console.log('PASS: v7.3 asset cache-busting, visible version, unique cache key and training range diagnostics.');

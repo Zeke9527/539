@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const oldModel = require('../../539-data-lab-v6.1/assets/model.js');
 const newModel = require('../assets/model.js');
 
-function makeDraws(count = 240) {
+function makeDraws(count = 200) {
   let state = 539;
   const random = () => {
     state = (state * 48271) % 2147483647;
@@ -32,11 +32,11 @@ const newResult = newModel.calculateFinalPrediction(draws, start.period, {
 assert.deepEqual(
   newResult.candidatePool.map(x => [x.number, x.score]),
   oldResult.candidatePool.map(x => [x.number, x.score]),
-  'v7.1 must reproduce v6.1 ranking and scores when given identical 200-draw history'
+  'v7.3 must reproduce v6.1 ranking and scores when given identical 200-draw history'
 );
 assert.deepEqual(
   newResult.survivors.map(x => x.number),
   oldResult.survivors.map(x => x.number),
-  'v7.1 must reproduce v6.1 D1-D4 exclusion survivors'
+  'v7.3 must reproduce v6.1 D1-D4 exclusion survivors'
 );
-console.log('PASS: v7.1 exactly reproduces v6.1 scores, ranking and D1-D4 exclusion on identical historical data.');
+console.log('PASS: v7.3 exactly reproduces v6.1 scores, ranking and D1-D4 exclusion on identical historical data.');
