@@ -9,13 +9,11 @@ function makeDraws(count = 100) {
   }).reverse();
 }
 const draws = makeDraws();
-for (const windowSize of [24,30,36]) {
-  const result = model.calculateFinalPrediction(draws, draws[4].period, {historyWindow:windowSize});
-  assert.equal(result.historyDrawCount, windowSize);
-  assert.equal(result.historyWindow, windowSize);
-  assert.equal(result.trainingRange.newest.period, draws[5].period);
-  assert.equal(result.candidatePool.length, 15);
-  assert.equal(result.observedFollowingFour.length, 4);
-}
-assert.throws(() => model.calculateFinalPrediction(draws, draws[4].period, {historyWindow:25}), /僅可選擇24、30或36期/);
-console.log('PASS: selectable 24/30/36 history windows and fixed D1-D4 elimination.');
+const result = model.calculateFinalPrediction(draws, draws[4].period, {historyWindow:36});
+assert.equal(result.historyDrawCount, 36);
+assert.equal(result.historyWindow, 36);
+assert.equal(result.trainingRange.newest.period, draws[5].period);
+assert.equal(result.candidatePool.length, 15);
+assert.equal(result.observedFollowingFour.length, 4);
+assert.throws(() => model.calculateFinalPrediction(draws, draws[4].period, {historyWindow:24}), /固定使用最近36期/);
+console.log('PASS: fixed 36-draw training window and D1-D4 elimination.');
