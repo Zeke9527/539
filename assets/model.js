@@ -68,10 +68,9 @@
    * Input array must be sorted newest-first.
    */
   function calculateFinalPrediction(drawsNewestFirst, startPeriod, options) {
-    const settings = Object.assign({ candidatePoolSize: 15, priorStrength: 10, historyWindow: 24 }, options || {});
-    const allowedWindows = [24, 30, 36];
-    const historyWindow = Number(settings.historyWindow);
-    if (!allowedWindows.includes(historyWindow)) throw new Error('歷史訓練範圍僅可選擇24、30或36期。') ;
+    const settings = Object.assign({ candidatePoolSize: 15, priorStrength: 10, historyWindow: 36 }, options || {});
+    const historyWindow = 36;
+    if (settings.historyWindow !== undefined && Number(settings.historyWindow) !== 36) throw new Error('本版本固定使用最近36期歷史資料。');
     const startIndex = drawsNewestFirst.findIndex(draw => String(draw.period) === String(startPeriod));
     if (startIndex < 0) throw new Error('找不到選定期別，請更新資料。');
     if (startIndex < 4) {

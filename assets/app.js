@@ -3,12 +3,12 @@
 
   const API_URL = 'https://api.taiwanlottery.com/TLCAPIWeB/Lottery/Daily539Result';
   const CONTENT_KEY = 'daily539Res';
-  const APP_VERSION = 'v7.4.0';
-  const CACHE_KEY = 'm539-final-v7-4-draw-cache';
+  const APP_VERSION = 'v7.5.0';
+  const CACHE_KEY = 'm539-final-v7-5-draw-cache';
   const CACHE_TTL_MS = 30 * 60 * 1000;
   const REQUEST_TIMEOUT_MS = 15000;
   const HISTORY_COUNT = 200;
-  const PICKER_COUNT = 10;
+  const PICKER_COUNT = 36;
   const $ = id => document.getElementById(id);
 
   let draws = [];
@@ -234,7 +234,7 @@
 
   function renderResult() {
     if (!lastResult) return;
-    const count = Number($('numberCount').value) || 3;
+    const count = 5;
     const result = lastResult;
     const picks = result.survivors.slice(0, count);
     const actual = result.targetDraw;
@@ -301,7 +301,7 @@
       lastResult = window.M539FinalModel.calculateFinalPrediction(draws, selectedPeriod, {
         candidatePoolSize: 15,
         priorStrength: 10,
-        historyWindow: Number($('historyWindow').value)
+        historyWindow: 36
       });
       renderResult();
       $('resultPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -369,7 +369,7 @@
 
   $('refreshBtn').addEventListener('click', () => refreshData(true));
   $('generateBtn').addEventListener('click', runAnalysis);
-  $('numberCount').addEventListener('change', () => { if (lastResult) renderResult(); });
+  
 
   refreshData(false);
 })();
