@@ -190,7 +190,7 @@ footer a:hover { color:var(--gold); }
 }
 /* Mark candidate numbers that appeared during D1-D4. */
 .mini-ball.removed { color:#fff; background:radial-gradient(circle at 34% 26%,#e9aaaa,#bd6868 58%,#8f4545); box-shadow:inset -3px -4px 7px rgba(75,20,20,.18),0 0 0 2px rgba(241,141,141,.10); }
-/* v7.5 fixed strategy controls */
+/* v7.6 selectable history strategy controls */
 .control-row { grid-template-columns: 1fr 1.15fr 1fr 220px; }
 .fixed-setting { min-width:0; padding:10px 12px; border:1px solid rgba(173,195,224,.13); border-radius:10px; background:rgba(255,255,255,.025); }
 .fixed-setting strong { display:block; color:var(--gold); font-size:13px; line-height:1.5; }

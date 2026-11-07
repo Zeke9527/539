@@ -3,6 +3,7 @@
 
   const NUMBERS = Array.from({ length: 39 }, (_, index) => index + 1);
   const FIVE_DRAW_BASE_PROBABILITY = 1 - Math.pow(34 / 39, 5);
+  const SUPPORTED_HISTORY_WINDOWS = [12, 18];
 
   function pad2(value) { return String(value).padStart(2, '0'); }
 
@@ -68,9 +69,11 @@
    * Input array must be sorted newest-first.
    */
   function calculateFinalPrediction(drawsNewestFirst, startPeriod, options) {
-    const settings = Object.assign({ candidatePoolSize: 15, priorStrength: 10, historyWindow: 36 }, options || {});
-    const historyWindow = 36;
-    if (settings.historyWindow !== undefined && Number(settings.historyWindow) !== 36) throw new Error('本版本固定使用最近36期歷史資料。');
+    const settings = Object.assign({ candidatePoolSize: 15, priorStrength: 10, historyWindow: 12 }, options || {});
+    const historyWindow = Number(settings.historyWindow);
+    if (!SUPPORTED_HISTORY_WINDOWS.includes(historyWindow)) {
+      throw new Error('歷史訓練範圍只能選擇12期或18期。');
+    }
     const startIndex = drawsNewestFirst.findIndex(draw => String(draw.period) === String(startPeriod));
     if (startIndex < 0) throw new Error('找不到選定期別，請更新資料。');
     if (startIndex < 4) {
@@ -149,6 +152,7 @@
   const api = {
     NUMBERS,
     FIVE_DRAW_BASE_PROBABILITY,
+    SUPPORTED_HISTORY_WINDOWS,
     pad2,
     validateTriggers,
     calculateFiveDrawTransition,
