@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0a1220">
   <meta name="description" content="539 數據研究室：選擇最近10期其中一期，以後五期歷史轉移排名前15碼，排除後續四期已開號碼，產生1至5碼候選。">
-  <title>539 數據研究室 v7.2｜前15碼・排除後四期</title>
-  <link rel="stylesheet" href="assets/styles.css?v=7.3.0">
+  <title>539 數據研究室 v7.4｜前15碼・排除後四期</title>
+  <link rel="stylesheet" href="assets/styles.css?v=7.4.0">
 </head>
 <body>
   <main class="page-shell">
@@ -25,7 +25,7 @@
       <div>
         <div class="eyebrow">TAIWAN LOTTERY · DAILY 539</div>
         <h1>選一期開獎號碼，<br><span>排除後四期，再產生候選。</span></h1>
-        <p class="hero-copy">固定使用歷史後五期轉移排名前15碼，排除起始期之後四期已經開出的號碼。選擇最後10期其中一組，並決定輸出1～5碼。</p>
+        <p class="hero-copy">可自行選擇24、30或36期歷史資料進行後五期轉移計分，排名前15碼後排除起始期之後四期已開出的號碼。</p>
       </div>
       <div class="hero-card">
         <div class="hero-card-label">最新資料</div>
@@ -43,7 +43,7 @@
           <h2>選擇最近10期其中一期</h2>
           <p>點選你要當作起始期（D0）的那一組五個號碼。系統會顯示該期之後的四期資料。</p>
         </div>
-        <span class="fixed-chip">最近200期訓練資料 · 顯示最近10期</span>
+        <span class="fixed-chip">載入最近200期資料 · 顯示最近10期</span>
       </div>
       <div id="drawOptions" class="draw-options" aria-label="最近10期開獎號碼選擇">
         <div class="loading-card">正在讀取最近10期開獎號碼…</div>
@@ -59,11 +59,19 @@
         <div>
           <div class="eyebrow">STEP 02 · GENERATE</div>
           <h2>產生候選號碼</h2>
-          <p>演算方式已固定，不提供其他模型或排除期數選項。</p>
+          <p>選擇歷史訓練範圍；固定取前15名候選，排除D1～D4已出現號碼。</p>
         </div>
         <span class="fixed-chip">原始排名前15碼 → 排除後四期</span>
       </div>
       <div class="control-row">
+        <div class="count-control">
+          <label for="historyWindow">歷史訓練範圍</label>
+          <select id="historyWindow">
+            <option value="24" selected>最近24期</option>
+            <option value="30">最近30期</option>
+            <option value="36">最近36期</option>
+          </select>
+        </div>
         <div class="selected-summary">
           <span>目前選定起始期</span>
           <strong id="selectedPeriodLabel">尚未選擇</strong>
@@ -82,7 +90,7 @@
         <button id="generateBtn" class="button button-gold generate-button" type="button" disabled>產生候選號碼</button>
       </div>
       <div class="method-strip">
-        <span><b>01</b> 歷史後五期轉移計分</span>
+        <span><b>01</b> 選定期數的後五期轉移計分</span>
         <span><b>02</b> 取前15名候選</span>
         <span><b>03</b> 排除D1～D4已開號碼</span>
         <span><b>04</b> 保留原排名輸出1～5碼</span>
@@ -136,11 +144,11 @@
     </section>
 
     <footer>
-      <span>539 DATA LAB · 個人統計研究工具，非台灣彩券官方網站 · <strong id="appVersion">v7.3.0</strong></span>
+      <span>539 DATA LAB · 個人統計研究工具，非台灣彩券官方網站 · <strong id="appVersion">v7.4.0</strong></span>
       <span>資料來源：<a href="https://www.taiwanlottery.com/lotto/history/history_result/" target="_blank" rel="noopener noreferrer">台灣彩券歷史開獎查詢</a></span>
     </footer>
   </main>
-  <script src="assets/model.js?v=7.3.0"></script>
-  <script src="assets/app.js?v=7.3.0"></script>
+  <script src="assets/model.js?v=7.4.0"></script>
+  <script src="assets/app.js?v=7.4.0"></script>
 </body>
 </html>
