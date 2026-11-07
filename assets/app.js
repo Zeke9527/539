@@ -3,18 +3,17 @@
 
   const API_URL = 'https://api.taiwanlottery.com/TLCAPIWeB/Lottery/Daily539Result';
   const CONTENT_KEY = 'daily539Res';
-  const APP_VERSION = 'v7.6.0';
-  const CACHE_KEY = 'm539-final-v7-6-draw-cache';
+  const APP_VERSION = 'v7.7.0';
+  const CACHE_KEY = 'm539-final-v7-7-draw-cache';
   const CACHE_TTL_MS = 30 * 60 * 1000;
   const REQUEST_TIMEOUT_MS = 15000;
   const HISTORY_COUNT = 200;
   const PICKER_COUNT = 15;
-  const DEFAULT_HISTORY_WINDOW = 12;
+  const HISTORY_WINDOW = 12;
   const $ = id => document.getElementById(id);
 
   let draws = [];
   let selectedPeriod = null;
-  let selectedHistoryWindow = DEFAULT_HISTORY_WINDOW;
   let lastResult = null;
   let isLoading = false;
 
@@ -143,7 +142,7 @@
   }
 
   function isEligibleIndex(index) {
-    return index >= 4 && draws.length - index - 1 >= selectedHistoryWindow;
+    return index >= 4 && draws.length - index - 1 >= HISTORY_WINDOW;
   }
 
   function getNextDraws(index) {
@@ -197,14 +196,14 @@
     }
     $('selectionContext').innerHTML = `<div class="selection-context-grid">${contextCards.join('')}</div>`;
 
-    const enoughHistory = draws.slice(index + 1).length >= selectedHistoryWindow;
+    const enoughHistory = draws.slice(index + 1).length >= HISTORY_WINDOW;
     const eligible = later.length === 4 && enoughHistory;
     $('generateBtn').disabled = !eligible || isLoading;
     if (!eligible) {
       const missing = Math.max(0, 4 - later.length);
       const warningText = missing > 0
         ? `你選擇的是 ${start.period} 期。此期之後目前只有 ${later.length} 期已開獎，還需要 ${missing} 期；等後續四期完整後，才能執行「排除後四期」並產生最終候選。`
-        : `起始期以前的歷史資料不足，選擇${selectedHistoryWindow}期訓練至少需要${selectedHistoryWindow}期。`;
+        : `起始期以前的歷史資料不足，本版本固定使用${HISTORY_WINDOW}期訓練，至少需要${HISTORY_WINDOW}期歷史資料。`;
       showNotice(warningText, 'warning', 'pickerNotice');
     } else if (index === 4) {
       showNotice(`已選定 ${start.period} 期。後續四期已全部開出，第五期尚未開出；現在可以進行預測。`, 'info', 'pickerNotice');
@@ -236,7 +235,7 @@
 
   function renderResult() {
     if (!lastResult) return;
-    const count = 5;
+    const count = 3;
     const result = lastResult;
     const picks = result.survivors.slice(0, count);
     const actual = result.targetDraw;
@@ -303,7 +302,7 @@
       lastResult = window.M539FinalModel.calculateFinalPrediction(draws, selectedPeriod, {
         candidatePoolSize: 15,
         priorStrength: 10,
-        historyWindow: selectedHistoryWindow
+        historyWindow: HISTORY_WINDOW
       });
       renderResult();
       $('resultPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -371,16 +370,5 @@
 
   $('refreshBtn').addEventListener('click', () => refreshData(true));
   $('generateBtn').addEventListener('click', runAnalysis);
-  $('historyWindow').addEventListener('change', event => {
-    const nextWindow = Number(event.target.value);
-    if (![12, 18].includes(nextWindow)) return;
-    selectedHistoryWindow = nextWindow;
-    lastResult = null;
-    $('resultPanel').classList.add('hidden');
-    renderDrawOptions();
-    renderSelectionContext();
-  });
-  
-
   refreshData(false);
 })();
