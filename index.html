@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0a1220">
-  <meta name="description" content="539 數據研究室：選擇最近10期其中一期，以後五期歷史轉移排名前15碼，排除後續四期已開號碼，產生1至5碼候選。">
-  <title>539 數據研究室 v7.4｜前15碼・排除後四期</title>
-  <link rel="stylesheet" href="assets/styles.css?v=7.4.0">
+  <meta name="description" content="539 數據研究室：顯示最近36期今彩539開獎資料，固定使用36期歷史訓練、排除後續四期，輸出5碼候選。">
+  <title>539 數據研究室 v7.5｜前15碼・排除後四期</title>
+  <link rel="stylesheet" href="assets/styles.css?v=7.5.0">
 </head>
 <body>
   <main class="page-shell">
@@ -25,7 +25,7 @@
       <div>
         <div class="eyebrow">TAIWAN LOTTERY · DAILY 539</div>
         <h1>選一期開獎號碼，<br><span>排除後四期，再產生候選。</span></h1>
-        <p class="hero-copy">可自行選擇24、30或36期歷史資料進行後五期轉移計分，排名前15碼後排除起始期之後四期已開出的號碼。</p>
+        <p class="hero-copy">固定使用起始期以前最近36期歷史資料進行後五期轉移計分，排名前15碼後排除起始期之後四期已開出的號碼，最後保留5碼。</p>
       </div>
       <div class="hero-card">
         <div class="hero-card-label">最新資料</div>
@@ -40,13 +40,13 @@
       <div class="section-heading">
         <div>
           <div class="eyebrow">STEP 01 · CHOOSE A DRAW</div>
-          <h2>選擇最近10期其中一期</h2>
+          <h2>從最近36期選擇起始期</h2>
           <p>點選你要當作起始期（D0）的那一組五個號碼。系統會顯示該期之後的四期資料。</p>
         </div>
-        <span class="fixed-chip">載入最近200期資料 · 顯示最近10期</span>
+        <span class="fixed-chip">分析訓練固定36期 · 顯示最近36期</span>
       </div>
-      <div id="drawOptions" class="draw-options" aria-label="最近10期開獎號碼選擇">
-        <div class="loading-card">正在讀取最近10期開獎號碼…</div>
+      <div id="drawOptions" class="draw-options" aria-label="最近36期開獎號碼選擇">
+        <div class="loading-card">正在讀取最近36期開獎號碼…</div>
       </div>
       <div id="selectionContext" class="selection-context">
         <p class="muted">載入歷史資料後，這裡會顯示所選起始期及後續四期開獎資料。</p>
@@ -59,33 +59,23 @@
         <div>
           <div class="eyebrow">STEP 02 · GENERATE</div>
           <h2>產生候選號碼</h2>
-          <p>選擇歷史訓練範圍；固定取前15名候選，排除D1～D4已出現號碼。</p>
+          <p>固定使用D0以前最近36期訓練；取前15名候選，排除D1～D4已出現號碼，最後選出5碼。</p>
         </div>
-        <span class="fixed-chip">原始排名前15碼 → 排除後四期</span>
+        <span class="fixed-chip">36期訓練 · TOP 15 · 排除4期 · 選5碼</span>
       </div>
       <div class="control-row">
-        <div class="count-control">
-          <label for="historyWindow">歷史訓練範圍</label>
-          <select id="historyWindow">
-            <option value="24" selected>最近24期</option>
-            <option value="30">最近30期</option>
-            <option value="36">最近36期</option>
-          </select>
+        <div class="count-control fixed-setting">
+          <label>歷史訓練範圍</label>
+          <strong>固定最近36期</strong>
         </div>
         <div class="selected-summary">
           <span>目前選定起始期</span>
           <strong id="selectedPeriodLabel">尚未選擇</strong>
           <small id="selectedNumbersLabel">—</small>
         </div>
-        <div class="count-control">
-          <label for="numberCount">要產生幾個號碼？</label>
-          <select id="numberCount">
-            <option value="1">1 碼</option>
-            <option value="2">2 碼</option>
-            <option value="3" selected>3 碼</option>
-            <option value="4">4 碼</option>
-            <option value="5">5 碼</option>
-          </select>
+        <div class="count-control fixed-setting">
+          <label>輸出號碼數量</label>
+          <strong>固定選出5碼</strong>
         </div>
         <button id="generateBtn" class="button button-gold generate-button" type="button" disabled>產生候選號碼</button>
       </div>
@@ -93,7 +83,7 @@
         <span><b>01</b> 選定期數的後五期轉移計分</span>
         <span><b>02</b> 取前15名候選</span>
         <span><b>03</b> 排除D1～D4已開號碼</span>
-        <span><b>04</b> 保留原排名輸出1～5碼</span>
+        <span><b>04</b> 固定保留排名前5碼</span>
       </div>
     </section>
 
@@ -135,20 +125,20 @@
       <div class="eyebrow">FIXED MODEL · HOW IT WORKS</div>
       <h2>目前唯一使用的推算流程</h2>
       <div class="method-flow">
-        <div class="method-step"><span>01</span><div><b>選定起始期 D0</b><p>從畫面最新10期中選擇一組開獎號碼，作為五個觸發號碼。</p></div></div>
+        <div class="method-step"><span>01</span><div><b>選定起始期 D0</b><p>從畫面最新36期中選擇一組開獎號碼，作為五個觸發號碼。</p></div></div>
         <div class="method-step"><span>02</span><div><b>建立原始候選排名</b><p>只使用D0以前的歷史資料。分別計算五個觸發號碼出現後，未來五期每個號碼至少出現一次的比例；五個觸發號碼等權平均，加入理論基準平滑，再取前15名。</p></div></div>
         <div class="method-step"><span>03</span><div><b>排除後續四期 D1～D4</b><p>將D1、D2、D3、D4已經出現過的號碼，從原始前15碼移除。D0本身不排除，也不把D5結果放進計算。</p></div></div>
-        <div class="method-step"><span>04</span><div><b>依需求輸出1～5碼</b><p>保留剩餘號碼的原始排名順序，選出前1～5碼。若剩餘號碼不足，會如實顯示實際可選數量，不補入已排除號碼。</p></div></div>
+        <div class="method-step"><span>04</span><div><b>固定輸出5碼</b><p>保留剩餘號碼的原始排名順序，選出前5碼。若剩餘號碼不足，會如實顯示實際可選數量，不補入已排除號碼。</p></div></div>
       </div>
-      <div class="disclaimer"><strong>研究提醒：</strong>今彩539每期開獎是隨機事件。歷史轉移與排除規則不會改變下一期的真實開獎機率；當後四期已開出後才可執行此方法，因此選定最近10期中最新的4期時，資料尚未完整，必須等待後續開獎。請勿把歷史關聯當成保證命中或追號依據。</div>
+      <div class="disclaimer"><strong>研究提醒：</strong>今彩539每期開獎是隨機事件。歷史轉移與排除規則不會改變下一期的真實開獎機率；當後四期已開出後才可執行此方法，因此選定最近36期中最新的4期時，資料尚未完整，必須等待後續開獎。請勿把歷史關聯當成保證命中或追號依據。</div>
     </section>
 
     <footer>
-      <span>539 DATA LAB · 個人統計研究工具，非台灣彩券官方網站 · <strong id="appVersion">v7.4.0</strong></span>
+      <span>539 DATA LAB · 個人統計研究工具，非台灣彩券官方網站 · <strong id="appVersion">v7.5.0</strong></span>
       <span>資料來源：<a href="https://www.taiwanlottery.com/lotto/history/history_result/" target="_blank" rel="noopener noreferrer">台灣彩券歷史開獎查詢</a></span>
     </footer>
   </main>
-  <script src="assets/model.js?v=7.4.0"></script>
-  <script src="assets/app.js?v=7.4.0"></script>
+  <script src="assets/model.js?v=7.5.0"></script>
+  <script src="assets/app.js?v=7.5.0"></script>
 </body>
 </html>
