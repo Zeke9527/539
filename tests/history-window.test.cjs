@@ -9,15 +9,13 @@ function makeDraws(count = 100) {
   }).reverse();
 }
 const draws = makeDraws();
-assert.deepEqual(model.SUPPORTED_HISTORY_WINDOWS, [12, 18]);
-for (const historyWindow of [12, 18]) {
-  const result = model.calculateFinalPrediction(draws, draws[4].period, {historyWindow});
-  assert.equal(result.historyDrawCount, historyWindow);
-  assert.equal(result.historyWindow, historyWindow);
-  assert.equal(result.trainingRange.newest.period, draws[5].period);
-  assert.equal(result.trainingRange.oldest.period, draws[4 + historyWindow].period);
-  assert.equal(result.candidatePool.length, 15);
-  assert.equal(result.observedFollowingFour.length, 4);
-}
-assert.throws(() => model.calculateFinalPrediction(draws, draws[4].period, {historyWindow:24}), /只能選擇12期或18期/);
-console.log('PASS: selectable 12/18-draw training windows with D1-D4 elimination.');
+assert.deepEqual(model.SUPPORTED_HISTORY_WINDOWS, [12]);
+const result = model.calculateFinalPrediction(draws, draws[4].period, {historyWindow:12});
+assert.equal(result.historyDrawCount, 12);
+assert.equal(result.historyWindow, 12);
+assert.equal(result.trainingRange.newest.period, draws[5].period);
+assert.equal(result.trainingRange.oldest.period, draws[16].period);
+assert.equal(result.candidatePool.length, 15);
+assert.equal(result.observedFollowingFour.length, 4);
+assert.throws(() => model.calculateFinalPrediction(draws, draws[4].period, {historyWindow:18}), /固定為12期/);
+console.log('PASS: fixed 12-draw training window with D1-D4 elimination.');
