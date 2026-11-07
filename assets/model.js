@@ -81,8 +81,15 @@
     if (historyBeforeStart.length < 6) {
       throw new Error('起始期以前的歷史資料不足，至少需要6期才能計算轉移排名。');
     }
+    if (historyBeforeStart.some(draw => !draw || !Array.isArray(draw.numbers) || draw.numbers.length !== 5)) {
+      throw new Error('起始期以前的歷史資料有缺漏或格式錯誤，請重新更新資料。');
+    }
 
     const transition = calculateFiveDrawTransition(historyBeforeStart, startDraw.numbers, settings.priorStrength);
+    const trainingRange = {
+      newest: historyBeforeStart[0],
+      oldest: historyBeforeStart[historyBeforeStart.length - 1]
+    };
     const candidatePool = NUMBERS
       .map(number => ({ number, score: transition.scores[number] }))
       .sort((a, b) => b.score - a.score || a.number - b.number)
@@ -121,6 +128,7 @@
       startDate: startDraw.date,
       startIndex,
       historyDrawCount: historyBeforeStart.length,
+      trainingRange,
       contextChronological,
       observedFollowingFour,
       targetDraw,

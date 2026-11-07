@@ -3,7 +3,8 @@
 
   const API_URL = 'https://api.taiwanlottery.com/TLCAPIWeB/Lottery/Daily539Result';
   const CONTENT_KEY = 'daily539Res';
-  const CACHE_KEY = 'm539-final-v7-1-draw-cache';
+  const APP_VERSION = 'v7.3.0';
+  const CACHE_KEY = 'm539-final-v7-3-draw-cache';
   const CACHE_TTL_MS = 30 * 60 * 1000;
   const REQUEST_TIMEOUT_MS = 15000;
   const HISTORY_COUNT = 200;
@@ -14,6 +15,8 @@
   let selectedPeriod = null;
   let lastResult = null;
   let isLoading = false;
+
+  if ($('appVersion')) $('appVersion').textContent = APP_VERSION;
 
   const pad2 = value => String(value).padStart(2, '0');
   const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -28,7 +31,7 @@
   }
 
   function setStatus(message, type) {
-    $('statusText').textContent = message;
+    $('statusText').textContent = `${APP_VERSION} · ${message}`;
     $('statusDot').className = `status-dot ${type || 'ok'}`;
   }
 
@@ -113,8 +116,8 @@
     }
 
     const sorted = sortDraws(byPeriod);
-    if (sorted.length < 65) {
-      throw new Error(`目前只取得 ${sorted.length} 期有效紀錄，至少需要65期才能穩定計算。`);
+    if (sorted.length < HISTORY_COUNT) {
+      throw new Error(`目前只取得 ${sorted.length} 期有效紀錄；本版本要求完整 ${HISTORY_COUNT} 期歷史資料。資料不足時不會產生排名，以免悄悄改變模型結果。請稍後按「更新資料」重試。`);
     }
     writeCache(sorted);
     return { draws: sorted.slice(0, HISTORY_COUNT), source: 'official-api', cachedAt: Date.now() };
@@ -242,8 +245,12 @@
       ? picks.map((item, index) => `<div class="pick-ball-wrap"><span class="pick-ball">${pad2(item.number)}</span><span class="pick-rank">保留排名 ${item.finalRank}</span></div>`).join('')
       : '<p class="muted">前15名在後四期都曾出現，沒有剩餘候選號碼。</p>';
 
+    const trainingRange = result.trainingRange
+      ? `${result.trainingRange.oldest.period} ～ ${result.trainingRange.newest.period}`
+      : '—';
     const metrics = [
       ['歷史訓練期數', `${result.historyDrawCount} 期`],
+      ['訓練期別範圍', trainingRange],
       ['原始候選', `${result.candidatePool.length} 碼`],
       ['被排除', `${result.eliminatedCandidates.length} 碼`],
       ['剩餘候選', `${result.survivors.length} 碼`],
@@ -324,12 +331,12 @@
       if (loaded.source === 'cache') {
         showNotice(`目前使用瀏覽器快取資料（快取時間：${new Date(loaded.cachedAt).toLocaleString('zh-TW')}）。按「更新資料」可強制重新抓取。`, 'warning', 'pickerNotice');
       } else {
-        showNotice(`已載入最近 ${draws.length} 期今彩539資料；預設選中最近一個已具備後續四期的起始期。`, 'info', 'pickerNotice');
+        showNotice(`已載入 ${draws.length} 期今彩539資料（${draws[draws.length - 1].period} ～ ${draws[0].period}）；分析時會再依所選 D0 顯示實際訓練範圍。`, 'info', 'pickerNotice');
       }
     } catch (error) {
       console.error(error);
       const cached = readCache();
-      if (cached && Array.isArray(cached.draws) && cached.draws.length >= 65) {
+      if (cached && Array.isArray(cached.draws) && cached.draws.length >= HISTORY_COUNT) {
         draws = cached.draws.slice(0, HISTORY_COUNT);
         renderLatest();
         const recent = draws.slice(0, PICKER_COUNT);
@@ -343,13 +350,18 @@
         showNotice(`即時抓取失敗：${error.message}。目前顯示快取資料，快取時間：${new Date(cached.savedAt).toLocaleString('zh-TW')}。請勿將快取誤認為最新開獎。`, 'warning', 'pickerNotice');
       } else {
         setStatus('資料載入失敗', 'error');
-        $('drawOptions').innerHTML = '<div class="loading-card">目前無法取得歷史資料，請按「更新資料」重試。</div>';
+        draws = [];
+        selectedPeriod = null;
+        renderLatest();
+        $('generateBtn').disabled = true;
+        $('drawOptions').innerHTML = '<div class="loading-card">尚未取得完整200期資料；資料不足時不會產生候選排名。</div>';
         showNotice(`無法取得台彩歷史資料：${error.message}。此網站使用台彩網站資料介面，若跨網域政策或回應格式變更，可能需要更新抓取程式。`, 'error', 'pickerNotice');
       }
     } finally {
       isLoading = false;
       $('refreshBtn').disabled = false;
       $('refreshBtn').textContent = '↻ 更新資料';
+      $('generateBtn').disabled = draws.length < HISTORY_COUNT || !selectedPeriod;
       renderSelectionContext();
     }
   }
