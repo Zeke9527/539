@@ -68,7 +68,10 @@
    * Input array must be sorted newest-first.
    */
   function calculateFinalPrediction(drawsNewestFirst, startPeriod, options) {
-    const settings = Object.assign({ candidatePoolSize: 15, priorStrength: 10 }, options || {});
+    const settings = Object.assign({ candidatePoolSize: 15, priorStrength: 10, historyWindow: 24 }, options || {});
+    const allowedWindows = [24, 30, 36];
+    const historyWindow = Number(settings.historyWindow);
+    if (!allowedWindows.includes(historyWindow)) throw new Error('歷史訓練範圍僅可選擇24、30或36期。') ;
     const startIndex = drawsNewestFirst.findIndex(draw => String(draw.period) === String(startPeriod));
     if (startIndex < 0) throw new Error('找不到選定期別，請更新資料。');
     if (startIndex < 4) {
@@ -77,10 +80,11 @@
     }
 
     const startDraw = drawsNewestFirst[startIndex];
-    const historyBeforeStart = drawsNewestFirst.slice(startIndex + 1);
-    if (historyBeforeStart.length < 6) {
-      throw new Error('起始期以前的歷史資料不足，至少需要6期才能計算轉移排名。');
+    const allHistoryBeforeStart = drawsNewestFirst.slice(startIndex + 1);
+    if (allHistoryBeforeStart.length < historyWindow) {
+      throw new Error(`起始期以前只有${allHistoryBeforeStart.length}期歷史資料，選擇${historyWindow}期訓練至少需要${historyWindow}期。`);
     }
+    const historyBeforeStart = allHistoryBeforeStart.slice(0, historyWindow);
     if (historyBeforeStart.some(draw => !draw || !Array.isArray(draw.numbers) || draw.numbers.length !== 5)) {
       throw new Error('起始期以前的歷史資料有缺漏或格式錯誤，請重新更新資料。');
     }
@@ -128,6 +132,7 @@
       startDate: startDraw.date,
       startIndex,
       historyDrawCount: historyBeforeStart.length,
+      historyWindow,
       trainingRange,
       contextChronological,
       observedFollowingFour,

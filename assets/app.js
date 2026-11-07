@@ -3,8 +3,8 @@
 
   const API_URL = 'https://api.taiwanlottery.com/TLCAPIWeB/Lottery/Daily539Result';
   const CONTENT_KEY = 'daily539Res';
-  const APP_VERSION = 'v7.3.0';
-  const CACHE_KEY = 'm539-final-v7-3-draw-cache';
+  const APP_VERSION = 'v7.4.0';
+  const CACHE_KEY = 'm539-final-v7-4-draw-cache';
   const CACHE_TTL_MS = 30 * 60 * 1000;
   const REQUEST_TIMEOUT_MS = 15000;
   const HISTORY_COUNT = 200;
@@ -240,7 +240,7 @@
     const actual = result.targetDraw;
 
     $('resultTitle').textContent = `排除後候選 ${picks.length} 碼`;
-    $('resultSubtitle').textContent = `起始期 ${result.startPeriod}｜原始排名前15碼｜排除D1～D4曾開出的號碼｜依原始排名順序保留。`;
+    $('resultSubtitle').textContent = `起始期 ${result.startPeriod}｜使用前${result.historyWindow}期歷史資料計分｜原始排名前15碼｜排除D1～D4曾開出的號碼｜依原始排名順序保留。`;
     $('resultBalls').innerHTML = picks.length
       ? picks.map((item, index) => `<div class="pick-ball-wrap"><span class="pick-ball">${pad2(item.number)}</span><span class="pick-rank">保留排名 ${item.finalRank}</span></div>`).join('')
       : '<p class="muted">前15名在後四期都曾出現，沒有剩餘候選號碼。</p>';
@@ -249,7 +249,7 @@
       ? `${result.trainingRange.oldest.period} ～ ${result.trainingRange.newest.period}`
       : '—';
     const metrics = [
-      ['歷史訓練期數', `${result.historyDrawCount} 期`],
+      ['歷史訓練期數', `${result.historyDrawCount} 期（選擇 ${result.historyWindow} 期）`],
       ['訓練期別範圍', trainingRange],
       ['原始候選', `${result.candidatePool.length} 碼`],
       ['被排除', `${result.eliminatedCandidates.length} 碼`],
@@ -300,7 +300,8 @@
     try {
       lastResult = window.M539FinalModel.calculateFinalPrediction(draws, selectedPeriod, {
         candidatePoolSize: 15,
-        priorStrength: 10
+        priorStrength: 10,
+        historyWindow: Number($('historyWindow').value)
       });
       renderResult();
       $('resultPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
