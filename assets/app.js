@@ -3,13 +3,17 @@
 
   const API_URL = 'https://api.taiwanlottery.com/TLCAPIWeB/Lottery/Daily539Result';
   const CONTENT_KEY = 'daily539Res';
-  const APP_VERSION = 'v7.7.0';
-  const CACHE_KEY = 'm539-final-v7-7-draw-cache';
+  const APP_VERSION = 'v7.8.0';
+  const CACHE_KEY = 'm539-final-v7-8-draw-cache';
   const CACHE_TTL_MS = 30 * 60 * 1000;
   const REQUEST_TIMEOUT_MS = 15000;
   const HISTORY_COUNT = 200;
   const PICKER_COUNT = 15;
-  const HISTORY_WINDOW = 12;
+  const MODES = {
+    mode35: { id: 'mode35', label: '模式一', historyWindow: 35, exclusionCount: 3, pickCount: 2, description: '訓練35期・排除3期・選2碼' },
+    mode49: { id: 'mode49', label: '模式二', historyWindow: 49, exclusionCount: 4, pickCount: 2, description: '訓練49期・排除4期・選2碼' }
+  };
+  let selectedModeId = 'mode35';
   const $ = id => document.getElementById(id);
 
   let draws = [];
@@ -137,27 +141,39 @@
     $('rangeText').textContent = draws.length ? `${formatDate(draws[draws.length - 1].date)} ～ ${formatDate(draws[0].date)}` : '—';
   }
 
-  function getStartIndex(period) {
-    return draws.findIndex(draw => String(draw.period) === String(period));
+  function getMode() { return MODES[selectedModeId]; }
+
+  function renderModeSettings() {
+    const mode = getMode();
+    document.querySelectorAll('.mode-option').forEach(button => {
+      const active = button.dataset.mode === selectedModeId;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+    $('historySettingLabel').textContent = `訓練${mode.historyWindow}期`;
+    $('excludeSettingLabel').textContent = `排除${mode.exclusionCount}期・選${mode.pickCount}碼`;
   }
 
   function isEligibleIndex(index) {
-    return index >= 4 && draws.length - index - 1 >= HISTORY_WINDOW;
+    const mode = getMode();
+    return index >= mode.exclusionCount && draws.length - index - 1 >= mode.historyWindow;
   }
 
   function getNextDraws(index) {
+    const count = getMode().exclusionCount;
     if (index <= 0) return [];
-    return draws.slice(Math.max(0, index - 4), index).reverse();
+    return draws.slice(Math.max(0, index - count), index).reverse();
   }
 
   function renderDrawOptions() {
     const recent = draws.slice(0, PICKER_COUNT);
     $('drawOptions').innerHTML = recent.map((draw, localIndex) => {
       const index = getStartIndex(draw.period);
-      const laterCount = Math.min(index, 4);
+      const mode = getMode();
+      const laterCount = Math.min(index, mode.exclusionCount);
       const eligible = isEligibleIndex(index);
       const selected = String(draw.period) === String(selectedPeriod);
-      let stateText = eligible ? (index === 4 ? '可預測｜後四期已齊' : '可回放｜第五期已開') : `後續資料 ${laterCount}/4 期`;
+      let stateText = eligible ? (index === mode.exclusionCount ? `可預測｜後${mode.exclusionCount}期已齊` : `可回放｜第${mode.exclusionCount + 1}期已開`) : `後續資料 ${laterCount}/${mode.exclusionCount} 期`;
       if (selected) stateText = '目前選定';
       return `<button class="draw-option ${selected ? 'selected' : ''}" type="button" data-period="${escapeHtml(draw.period)}" aria-pressed="${selected}">
         <div class="draw-option-top"><span class="draw-period">${escapeHtml(draw.period)}</span><span class="draw-index">#${localIndex + 1}</span></div>
@@ -187,29 +203,30 @@
     $('selectedPeriodLabel').textContent = `${start.period}｜${formatDate(start.date)}`;
     $('selectedNumbersLabel').textContent = `起始號碼：${start.numbers.map(pad2).join('、')}`;
 
+    const mode = getMode();
     const contextCards = [`<div class="context-draw start"><span class="context-label">起始期 D0</span><div class="context-period">${escapeHtml(start.period)}</div><div class="context-balls">${start.numbers.map(number => drawBallMarkup(number)).join('')}</div></div>`];
-    for (let step = 0; step < 4; step += 1) {
+    for (let step = 0; step < mode.exclusionCount; step += 1) {
       const draw = later[step];
       contextCards.push(draw
-        ? `<div class="context-draw"><span class="context-label">後續第${step + 1}期 D${step + 1}</span><div class="context-period">${escapeHtml(draw.period)}</div><div class="context-balls">${draw.numbers.map(number => drawBallMarkup(number)).join('')}</div></div>`
-        : `<div class="context-placeholder"><span>後續第${step + 1}期<br>等待開獎</span></div>`);
+        ? `<div class="context-draw"><span class="context-label">排除期 D${step + 1}</span><div class="context-period">${escapeHtml(draw.period)}</div><div class="context-balls">${draw.numbers.map(number => drawBallMarkup(number)).join('')}</div></div>`
+        : `<div class="context-placeholder"><span>排除期 D${step + 1}<br>等待開獎</span></div>`);
     }
-    $('selectionContext').innerHTML = `<div class="selection-context-grid">${contextCards.join('')}</div>`;
+    $('selectionContext').innerHTML = `<div class="selection-context-grid" style="grid-template-columns:repeat(${mode.exclusionCount + 1},minmax(0,1fr))">${contextCards.join('')}</div>`;
 
-    const enoughHistory = draws.slice(index + 1).length >= HISTORY_WINDOW;
-    const eligible = later.length === 4 && enoughHistory;
+    const enoughHistory = draws.slice(index + 1).length >= mode.historyWindow;
+    const eligible = later.length === mode.exclusionCount && enoughHistory;
     $('generateBtn').disabled = !eligible || isLoading;
     if (!eligible) {
-      const missing = Math.max(0, 4 - later.length);
+      const missing = Math.max(0, mode.exclusionCount - later.length);
       const warningText = missing > 0
-        ? `你選擇的是 ${start.period} 期。此期之後目前只有 ${later.length} 期已開獎，還需要 ${missing} 期；等後續四期完整後，才能執行「排除後四期」並產生最終候選。`
-        : `起始期以前的歷史資料不足，本版本固定使用${HISTORY_WINDOW}期訓練，至少需要${HISTORY_WINDOW}期歷史資料。`;
+        ? `你選擇的是 ${start.period} 期。此期之後目前只有 ${later.length} 期已開獎，還需要 ${missing} 期；等後續${mode.exclusionCount}期完整後，才能執行「排除後${mode.exclusionCount}期」並產生候選。`
+        : `起始期以前的歷史資料不足；目前模式固定使用${mode.historyWindow}期訓練，至少需要${mode.historyWindow}期歷史資料。`;
       showNotice(warningText, 'warning', 'pickerNotice');
-    } else if (index === 4) {
-      showNotice(`已選定 ${start.period} 期。後續四期已全部開出，第五期尚未開出；現在可以進行預測。`, 'info', 'pickerNotice');
+    } else if (index === mode.exclusionCount) {
+      showNotice(`已選定 ${start.period} 期。後續${mode.exclusionCount}期已全部開出，目標期尚未開出；現在可以進行預測。`, 'info', 'pickerNotice');
     } else {
-      const target = draws[index - 5];
-      showNotice(`已選定 ${start.period} 期。這是歷史回放：第五期 ${target.period} 已有實際開獎資料，產生候選後可同時查看命中結果。`, 'info', 'pickerNotice');
+      const target = draws[index - mode.exclusionCount - 1];
+      showNotice(`已選定 ${start.period} 期。這是歷史回放：排除後第${mode.exclusionCount + 1}期 ${target.period} 已有實際開獎資料，產生候選後可同時查看命中結果。`, 'info', 'pickerNotice');
     }
   }
 
@@ -223,7 +240,8 @@
 
   function renderObservedDraws(result) {
     const pool = new Set(result.candidatePool.map(item => item.number));
-    $('observedDraws').innerHTML = result.observedFollowingFour.map((draw, index) => {
+    $('observedDraws').style.gridTemplateColumns = `repeat(${result.exclusionCount},minmax(0,1fr))`;
+    $('observedDraws').innerHTML = result.observedFollowing.map((draw, index) => {
       const hits = draw.numbers.filter(number => pool.has(number));
       return `<div class="observed-card">
         <strong>D${index + 1} · ${escapeHtml(draw.period)}</strong>
@@ -235,16 +253,19 @@
 
   function renderResult() {
     if (!lastResult) return;
-    const count = 3;
     const result = lastResult;
+    const count = result.pickCount;
     const picks = result.survivors.slice(0, count);
     const actual = result.targetDraw;
 
     $('resultTitle').textContent = `排除後候選 ${picks.length} 碼`;
-    $('resultSubtitle').textContent = `起始期 ${result.startPeriod}｜使用前${result.historyWindow}期歷史資料計分｜原始排名前15碼｜排除D1～D4曾開出的號碼｜依原始排名順序保留。`;
+    $('resultSubtitle').textContent = `起始期 ${result.startPeriod}｜訓練${result.historyWindow}期｜原始排名前15碼｜排除D1～D${result.exclusionCount}曾開出的號碼｜依原始排名順序選出2碼。`;
+    $('resultMode').textContent = `TRAIN ${result.historyWindow} · EXCLUDE ${result.exclusionCount} · PICK 2`;
+    $('observedHeading').textContent = `後續${result.exclusionCount}期開獎與排除紀錄`;
+    $('observedDescription').textContent = `只要號碼在D1～D${result.exclusionCount}任一期出現，就從原始前15碼移除；D0不參與排除。`;
     $('resultBalls').innerHTML = picks.length
       ? picks.map((item, index) => `<div class="pick-ball-wrap"><span class="pick-ball">${pad2(item.number)}</span><span class="pick-rank">保留排名 ${item.finalRank}</span></div>`).join('')
-      : '<p class="muted">前15名在後四期都曾出現，沒有剩餘候選號碼。</p>';
+      : '<p class="muted">前15名都曾在指定排除期出現，沒有剩餘候選號碼。</p>'; 
 
     const trainingRange = result.trainingRange
       ? `${result.trainingRange.oldest.period} ～ ${result.trainingRange.newest.period}`
@@ -258,16 +279,16 @@
       ['本次輸出', `${picks.length}/${count} 碼`]
     ];
     if (actual) {
-      metrics.push(['原始池命中', `${result.originalHits.length} 碼`]);
-      metrics.push(['保留池命中', `${result.survivorHits.length} 碼`]);
+      metrics.push(['目標期命中', `${result.survivorHits.length} 碼`]);
+      metrics.push(['目標期', result.targetDraw.period]);
     }
     $('resultMetrics').innerHTML = metrics.map(([label, value]) => `<div class="metric-card"><span>${label}</span><strong>${value}</strong></div>`).join('');
 
     if (actual) {
       const hits = picks.filter(item => actual.numbers.includes(item.number)).map(item => pad2(item.number));
-      showNotice(`歷史回放：第五期 ${actual.period} 實際開出 ${actual.numbers.map(pad2).join('、')}；原始前15碼命中 ${result.originalHits.length} 碼，排除後完整候選命中 ${result.survivorHits.length} 碼；本次選出的 ${picks.length} 碼命中 ${hits.length} 碼${hits.length ? `（${hits.join('、')}）` : ''}。`, 'info', 'resultNotice');
+      showNotice(`歷史回放：排除後第${result.exclusionCount + 1}期 ${actual.period} 實際開出 ${actual.numbers.map(pad2).join('、')}；原始前15碼命中 ${result.originalHits.length} 碼，排除後完整候選命中 ${result.survivorHits.length} 碼；本次選出的 ${picks.length} 碼命中 ${hits.length} 碼${hits.length ? `（${hits.join('、')}）` : ''}。`, 'info', 'resultNotice');
     } else {
-      showNotice('目前是預測模式：第五期尚未開出。資料更新後選回相同起始期，即可進行實際命中驗證。', 'warning', 'resultNotice');
+      showNotice(`目前是預測模式：排除後第${result.exclusionCount + 1}期尚未開出。資料更新後選回相同起始期，即可進行實際命中驗證。`, 'warning', 'resultNotice');
     }
 
     renderObservedDraws(result);
@@ -289,7 +310,7 @@
       const hit = actualSet ? (actualSet.has(item.number) ? '<strong>命中</strong>' : '—') : '待開獎';
       return `<tr${selected ? ' class="selected-row"' : ''}><td>${item.originalRank}</td><td><strong>${pad2(item.number)}</strong></td><td>${(item.score * 100).toFixed(2)}%</td><td>${status}</td><td>${hit}</td></tr>`;
     }).join('');
-    $('rankingTable').innerHTML = `<table><thead><tr><th>原排名</th><th>號碼</th><th>後五期平滑分數</th><th>排除結果</th><th>第五期對獎</th></tr></thead><tbody>${rows}</tbody></table>`;
+    $('rankingTable').innerHTML = `<table><thead><tr><th>原排名</th><th>號碼</th><th>後五期平滑分數</th><th>排除結果</th><th>目標期對獎</th></tr></thead><tbody>${rows}</tbody></table>`;
 
     $('sampleCards').innerHTML = result.transition.perTrigger.map(item => `
       <div class="sample-card"><span class="sample-number">${pad2(item.trigger)}</span><div><b>${item.samples} 次有效樣本</b><small>歷史出現後的五期觀察</small></div></div>`).join('');
@@ -299,10 +320,13 @@
   function runAnalysis() {
     if (!selectedPeriod) return;
     try {
+      const mode = getMode();
       lastResult = window.M539FinalModel.calculateFinalPrediction(draws, selectedPeriod, {
         candidatePoolSize: 15,
         priorStrength: 10,
-        historyWindow: HISTORY_WINDOW
+        historyWindow: mode.historyWindow,
+        exclusionCount: mode.exclusionCount,
+        pickCount: mode.pickCount
       });
       renderResult();
       $('resultPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -342,7 +366,7 @@
         draws = cached.draws.slice(0, HISTORY_COUNT);
         renderLatest();
         const recent = draws.slice(0, PICKER_COUNT);
-        const defaultEligible = recent.find(draw => getStartIndex(draw.period) >= 4);
+        const defaultEligible = recent.find(draw => isEligibleIndex(getStartIndex(draw.period)));
         if (!selectedPeriod || !draws.some(draw => String(draw.period) === String(selectedPeriod))) {
           selectedPeriod = defaultEligible ? defaultEligible.period : null;
         }
@@ -368,7 +392,24 @@
     }
   }
 
+  document.querySelectorAll('.mode-option').forEach(button => {
+    button.addEventListener('click', () => {
+      if (button.dataset.mode === selectedModeId) return;
+      selectedModeId = button.dataset.mode;
+      if (!isEligibleIndex(getStartIndex(selectedPeriod))) {
+        const nextEligible = draws.slice(0, PICKER_COUNT).find(draw => isEligibleIndex(getStartIndex(draw.period)));
+        selectedPeriod = nextEligible ? nextEligible.period : null;
+      }
+      lastResult = null;
+      $('resultPanel').classList.add('hidden');
+      renderModeSettings();
+      renderDrawOptions();
+      renderSelectionContext();
+    });
+  });
+
   $('refreshBtn').addEventListener('click', () => refreshData(true));
   $('generateBtn').addEventListener('click', runAnalysis);
+  renderModeSettings();
   refreshData(false);
 })();

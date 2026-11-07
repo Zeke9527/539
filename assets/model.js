@@ -3,7 +3,8 @@
 
   const NUMBERS = Array.from({ length: 39 }, (_, index) => index + 1);
   const FIVE_DRAW_BASE_PROBABILITY = 1 - Math.pow(34 / 39, 5);
-  const SUPPORTED_HISTORY_WINDOWS = [12];
+  const SUPPORTED_HISTORY_WINDOWS = [35, 49];
+  const SUPPORTED_EXCLUSION_COUNTS = [3, 4];
 
   function pad2(value) { return String(value).padStart(2, '0'); }
 
@@ -64,21 +65,38 @@
   }
 
   /**
-   * Final strategy: Top 15 from the five-draw transition score, then remove all
-   * candidates seen in D1-D4. D0 and D5 never enter the elimination set.
-   * Input array must be sorted newest-first.
+   * Two fixed modes are supported:
+   * Mode 1: train on 35 draws, exclude D1-D3, output top 2 survivors.
+   * Mode 2: train on 49 draws, exclude D1-D4, output top 2 survivors.
+   * Input draws must be sorted newest-first.
    */
   function calculateFinalPrediction(drawsNewestFirst, startPeriod, options) {
-    const settings = Object.assign({ candidatePoolSize: 15, priorStrength: 10, historyWindow: 12 }, options || {});
+    const settings = Object.assign({
+      candidatePoolSize: 15,
+      priorStrength: 10,
+      historyWindow: 35,
+      exclusionCount: 3,
+      pickCount: 2
+    }, options || {});
+
     const historyWindow = Number(settings.historyWindow);
-    if (!SUPPORTED_HISTORY_WINDOWS.includes(historyWindow)) {
-      throw new Error('本版本歷史訓練範圍固定為12期。');
+    const exclusionCount = Number(settings.exclusionCount);
+    const pickCount = Number(settings.pickCount);
+    const candidatePoolSize = Number(settings.candidatePoolSize);
+
+    const supportedMode = (historyWindow === 35 && exclusionCount === 3) || (historyWindow === 49 && exclusionCount === 4);
+    if (!supportedMode) {
+      throw new Error('只支援模式一（訓練35期、排除3期）或模式二（訓練49期、排除4期）。');
     }
+    if (pickCount !== 2 || candidatePoolSize !== 15) {
+      throw new Error('本版本固定從TOP 15候選中選出2碼。');
+    }
+
     const startIndex = drawsNewestFirst.findIndex(draw => String(draw.period) === String(startPeriod));
     if (startIndex < 0) throw new Error('找不到選定期別，請更新資料。');
-    if (startIndex < 4) {
+    if (startIndex < exclusionCount) {
       const available = startIndex;
-      throw new Error(`這一期之後目前只有${available}期資料，還需要${4 - available}期，才能排除完整後四期。`);
+      throw new Error(`這一期之後目前只有${available}期資料，還需要${exclusionCount - available}期，才能完成排除後${exclusionCount}期。`);
     }
 
     const startDraw = drawsNewestFirst[startIndex];
@@ -99,16 +117,20 @@
     const candidatePool = NUMBERS
       .map(number => ({ number, score: transition.scores[number] }))
       .sort((a, b) => b.score - a.score || a.number - b.number)
-      .slice(0, 15)
+      .slice(0, candidatePoolSize)
       .map((item, index) => ({ ...item, originalRank: index + 1 }));
 
-    // drawsNewestFirst slice gives [D4,D3,D2,D1,D0]; reverse to D0..D4.
-    const contextChronological = drawsNewestFirst.slice(startIndex - 4, startIndex + 1).reverse();
-    if (contextChronological.length !== 5) throw new Error('無法取得起始期與後續四期的完整資料。');
-    const observedFollowingFour = contextChronological.slice(1);
+    // Include D0 through Dn in chronological order; only D1..Dn are excluded.
+    const contextChronological = drawsNewestFirst
+      .slice(startIndex - exclusionCount, startIndex + 1)
+      .reverse();
+    if (contextChronological.length !== exclusionCount + 1) {
+      throw new Error(`無法取得起始期與後續${exclusionCount}期的完整資料。`);
+    }
+    const observedFollowing = contextChronological.slice(1);
     const exclusions = new Map();
 
-    for (const draw of observedFollowingFour) {
+    for (const draw of observedFollowing) {
       for (const number of draw.numbers) {
         if (!exclusions.has(number)) exclusions.set(number, []);
         exclusions.get(number).push({ period: draw.period, date: draw.date });
@@ -122,8 +144,10 @@
       .filter(item => !exclusions.has(item.number))
       .map((item, index) => ({ ...item, finalRank: index + 1 }));
 
-    // For the latest eligible start (the fifth newest issue), D5 is not known yet.
-    const targetDraw = startIndex >= 5 ? drawsNewestFirst[startIndex - 5] : null;
+    // The target is D(n+1). It is only used for historical verification, never scoring.
+    const targetDraw = startIndex > exclusionCount
+      ? drawsNewestFirst[startIndex - exclusionCount - 1]
+      : null;
     const targetSet = targetDraw ? new Set(targetDraw.numbers) : null;
     const originalHits = targetSet ? candidatePool.filter(item => targetSet.has(item.number)).map(item => item.number) : null;
     const survivorHits = targetSet ? survivors.filter(item => targetSet.has(item.number)).map(item => item.number) : null;
@@ -135,9 +159,11 @@
       startIndex,
       historyDrawCount: historyBeforeStart.length,
       historyWindow,
+      exclusionCount,
+      pickCount,
       trainingRange,
       contextChronological,
-      observedFollowingFour,
+      observedFollowing,
       targetDraw,
       transition,
       candidatePool,
@@ -153,6 +179,7 @@
     NUMBERS,
     FIVE_DRAW_BASE_PROBABILITY,
     SUPPORTED_HISTORY_WINDOWS,
+    SUPPORTED_EXCLUSION_COUNTS,
     pad2,
     validateTriggers,
     calculateFiveDrawTransition,
