@@ -4,16 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0a1220">
-  <meta name="description" content="539 數據研究室：顯示最近15期今彩539開獎資料，固定使用12期歷史訓練、排除後續四期，輸出3碼候選。">
-  <title>539 數據研究室 v7.7｜固定12期訓練・排除後四期・選3碼</title>
-  <link rel="stylesheet" href="assets/styles.css?v=7.7.0">
+  <meta name="description" content="539 數據研究室：顯示最近15期今彩539開獎資料，提供兩種固定模式：訓練35期排除3期，或訓練49期排除4期，皆輸出2碼候選。">
+  <title>539 數據研究室 v7.8｜雙模式・選2碼</title>
+  <link rel="stylesheet" href="assets/styles.css?v=7.8.0">
 </head>
 <body>
   <main class="page-shell">
     <header class="topbar">
       <a class="brand" href="./" aria-label="539 數據研究室首頁">
         <span class="brand-mark">539</span>
-        <span class="brand-text"><strong>539 DATA LAB</strong><small>TOP 15 · FOUR-DRAW ELIMINATION</small></span>
+        <span class="brand-text"><strong>539 DATA LAB</strong><small>TOP 15 · TWO MODES · 2 PICKS</small></span>
       </a>
       <div class="top-actions">
         <div class="status-pill"><i id="statusDot" class="status-dot loading"></i><span id="statusText">正在載入歷史資料</span></div>
@@ -24,8 +24,8 @@
     <section class="hero">
       <div>
         <div class="eyebrow">TAIWAN LOTTERY · DAILY 539</div>
-        <h1>選一期開獎號碼，<br><span>排除後四期，再產生候選。</span></h1>
-        <p class="hero-copy">固定使用起始期以前最近12期歷史資料進行後五期轉移計分，排名前15碼後排除起始期之後四期已開出的號碼，最後保留3碼。</p>
+        <h1>選一期開獎號碼，<br><span>套用兩種固定模式之一。</span></h1>
+        <p class="hero-copy">提供兩種回測表現較佳的固定組合：模式一使用前35期訓練並排除後3期；模式二使用前49期訓練並排除後4期。兩種模式皆從TOP 15候選中保留2碼。</p>
       </div>
       <div class="hero-card">
         <div class="hero-card-label">最新資料</div>
@@ -41,15 +41,15 @@
         <div>
           <div class="eyebrow">STEP 01 · CHOOSE A DRAW</div>
           <h2>從最近15期選擇起始期</h2>
-          <p>點選你要當作起始期（D0）的那組五個號碼。系統會顯示該期之後的四期資料。</p>
+          <p>點選你要當作起始期（D0）的那組五個號碼。系統會依目前模式顯示後續排除期數。</p>
         </div>
-        <span class="fixed-chip">固定12期訓練 · 顯示最近15期</span>
+        <span class="fixed-chip">兩種固定模式 · 顯示最近15期</span>
       </div>
       <div id="drawOptions" class="draw-options" aria-label="最近15期開獎號碼選擇">
         <div class="loading-card">正在讀取最近15期開獎號碼…</div>
       </div>
       <div id="selectionContext" class="selection-context">
-        <p class="muted">載入歷史資料後，這裡會顯示所選起始期及後續四期開獎資料。</p>
+        <p class="muted">載入歷史資料後，這裡會顯示所選起始期及目前模式的後續開獎資料。</p>
       </div>
       <div id="pickerNotice" class="notice hidden" role="status"></div>
     </section>
@@ -58,10 +58,22 @@
       <div class="section-heading">
         <div>
           <div class="eyebrow">STEP 02 · GENERATE</div>
-          <h2>產生候選號碼</h2>
-          <p>固定使用D0以前最近12期訓練；取前15名候選，排除D1～D4已出現號碼，最後選出3碼。</p>
+          <h2>選擇預測模式</h2>
+          <p>兩種模式皆使用相同TOP 15評分模型與先驗強度10，差異在訓練期數及排除期數。</p>
         </div>
-        <span class="fixed-chip">固定12期訓練 · TOP 15 · 排除4期 · 選3碼</span>
+        <span class="fixed-chip">TOP 15 · 固定選2碼</span>
+      </div>
+      <div class="mode-switch" role="group" aria-label="選擇預測模式">
+        <button class="mode-option active" type="button" data-mode="mode35" aria-pressed="true">
+          <span class="mode-kicker">模式一 · 回測組合 A</span>
+          <strong>訓練35期・排除3期</strong>
+          <small>每次選出2顆</small>
+        </button>
+        <button class="mode-option" type="button" data-mode="mode49" aria-pressed="false">
+          <span class="mode-kicker">模式二 · 回測組合 B</span>
+          <strong>訓練49期・排除4期</strong>
+          <small>每次選出2顆</small>
+        </button>
       </div>
       <div class="control-row">
         <div class="selected-summary">
@@ -70,20 +82,20 @@
           <small id="selectedNumbersLabel">—</small>
         </div>
         <div class="count-control fixed-setting">
-          <label>歷史訓練範圍</label>
-          <strong>固定使用12期</strong>
+          <label>目前模式設定</label>
+          <strong id="historySettingLabel">訓練35期</strong>
         </div>
         <div class="count-control fixed-setting">
-          <label>輸出號碼數量</label>
-          <strong>固定選出3碼</strong>
+          <label>排除期數・輸出數量</label>
+          <strong id="excludeSettingLabel">排除3期・選2碼</strong>
         </div>
         <button id="generateBtn" class="button button-gold generate-button" type="button" disabled>產生候選號碼</button>
       </div>
       <div class="method-strip">
-        <span><b>01</b> 選定期數的後五期轉移計分</span>
-        <span><b>02</b> 取前15名候選</span>
-        <span><b>03</b> 排除D1～D4已開號碼</span>
-        <span><b>04</b> 固定保留排名前3碼</span>
+        <span><b>01</b> D0以前依模式訓練</span>
+        <span><b>02</b> 計算五個觸發號碼的轉移分數</span>
+        <span><b>03</b> 取前15名並排除指定期數</span>
+        <span><b>04</b> 依原排名保留前2碼</span>
       </div>
     </section>
 
@@ -92,16 +104,16 @@
         <div>
           <div class="eyebrow">STEP 03 · RESULT</div>
           <h2 id="resultTitle">本次候選號碼</h2>
-          <p id="resultSubtitle">依照原始排名順序，排除後四期出現過的候選號碼。</p>
+          <p id="resultSubtitle">依照目前模式設定排除後續開獎號碼，並保留排名前2碼。</p>
         </div>
-        <span id="resultMode" class="fixed-chip">TOP 15 · EXCLUDE 4 DRAWS</span>
+        <span id="resultMode" class="fixed-chip">TOP 15 · 2 PICKS</span>
       </div>
       <div id="resultBalls" class="result-balls"></div>
       <div id="resultNotice" class="notice hidden" role="status"></div>
       <div id="resultMetrics" class="metrics-grid"></div>
 
       <div class="result-section">
-        <div class="subheading"><div><h3>後續四期開獎與排除紀錄</h3><p>只要號碼在D1～D4任一期出現，就從原始前15碼中移除；D0不參與排除。</p></div></div>
+        <div class="subheading"><div><h3 id="observedHeading">後續排除期開獎與排除紀錄</h3><p id="observedDescription">只要號碼在指定排除期數任一期出現，就從原始前15碼中移除；D0不參與排除。</p></div></div>
         <div id="observedDraws" class="observed-grid"></div>
       </div>
 
@@ -123,22 +135,22 @@
 
     <section class="panel method-panel">
       <div class="eyebrow">FIXED MODEL · HOW IT WORKS</div>
-      <h2>目前唯一使用的推算流程</h2>
+      <h2>兩種固定模式共用的推算流程</h2>
       <div class="method-flow">
         <div class="method-step"><span>01</span><div><b>選定起始期 D0</b><p>從畫面最新15期中選擇一組開獎號碼，作為五個觸發號碼。</p></div></div>
         <div class="method-step"><span>02</span><div><b>建立原始候選排名</b><p>只使用D0以前的歷史資料。分別計算五個觸發號碼出現後，未來五期每個號碼至少出現一次的比例；五個觸發號碼等權平均，加入理論基準平滑，再取前15名。</p></div></div>
-        <div class="method-step"><span>03</span><div><b>排除後續四期 D1～D4</b><p>將D1、D2、D3、D4已經出現過的號碼，從原始前15碼移除。D0本身不排除，也不把D5結果放進計算。</p></div></div>
-        <div class="method-step"><span>04</span><div><b>固定輸出3碼</b><p>保留剩餘號碼的原始排名順序，選出前3碼。若剩餘號碼不足，會如實顯示實際可選數量，不補入已排除號碼。</p></div></div>
+        <div class="method-step"><span>03</span><div><b>依模式排除後續期數</b><p>模式一排除D1～D3；模式二排除D1～D4。D0本身不排除，目標期不參與排名或排除。</p></div></div>
+        <div class="method-step"><span>04</span><div><b>固定輸出2碼</b><p>保留剩餘號碼的原始排名順序，選出前2碼。若剩餘號碼不足，會如實顯示實際可選數量，不補入已排除號碼。</p></div></div>
       </div>
-      <div class="disclaimer"><strong>研究提醒：</strong>今彩539每期開獎是隨機事件。歷史轉移與排除規則不會改變下一期的真實開獎機率；當後四期已開出後才可執行此方法，因此選定最近15期中最新的4期時，資料尚未完整，必須等待後續開獎。請勿把歷史關聯當成保證命中或追號依據。</div>
+      <div class="disclaimer"><strong>研究提醒：</strong>今彩539每期開獎是隨機事件。歷史轉移與排除規則不會改變下一期的真實開獎機率；必須等目前模式指定的3期或4期都已開出後，才能產生候選。請勿把歷史關聯當成保證命中或追號依據。</div>
     </section>
 
     <footer>
-      <span>539 DATA LAB · 個人統計研究工具，非台灣彩券官方網站 · <strong id="appVersion">v7.7.0</strong></span>
+      <span>539 DATA LAB · 個人統計研究工具，非台灣彩券官方網站 · <strong id="appVersion">v7.8.0</strong></span>
       <span>資料來源：<a href="https://www.taiwanlottery.com/lotto/history/history_result/" target="_blank" rel="noopener noreferrer">台灣彩券歷史開獎查詢</a></span>
     </footer>
   </main>
-  <script src="assets/model.js?v=7.7.0"></script>
-  <script src="assets/app.js?v=7.7.0"></script>
+  <script src="assets/model.js?v=7.8.0"></script>
+  <script src="assets/app.js?v=7.8.0"></script>
 </body>
 </html>
