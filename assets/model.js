@@ -1,179 +1,180 @@
-/* 539 三模型即時預測引擎
- * 三種固定模型：
- * 1) v7.8.1 全歷史／Prior10：any-hit in next 5 draws
- * 2) v7.8.1 T49／Prior10：same method, last 49 history draws
- * 3) v7.9-shadow Average Count T49／Prior50：total appearances across next 5 draws
- * All models: equal-weight 5 D0 triggers, TOP15, exclude D1-D4, pick top 2 survivors.
+/* 539 DATA LAB v7.9
+ * 唯一正式運行模型：Average Count / T49 / Prior50 / TOP15 / D1-D4 / 前2碼
+ * 訓練資料只取 D0 以前最近49期；每個 D0 觸發號碼等權。
  */
 (function (root) {
   'use strict';
 
+  const VERSION = 'v7.9';
   const NUMBERS = Array.from({ length: 39 }, (_, i) => i + 1);
-  const P5_ANY = 1 - Math.pow(34 / 39, 5);
-  const P_SINGLE = 5 / 39;
+  const TRAIN_WINDOW = 49;
+  const PRIOR_STRENGTH = 50;
+  const PRIOR_SINGLE_DRAW_RATE = 5 / 39;
   const TOP_K = 15;
   const PICK_COUNT = 2;
+  const EXCLUDE_DRAWS = 4;
 
   function validateDraw(draw) {
     if (!draw || !Array.isArray(draw.numbers) || draw.numbers.length !== 5) {
       throw new Error('開獎資料格式錯誤：每期必須有5個號碼。');
     }
-    const ns = draw.numbers.map(Number);
-    if (ns.some(n => !Number.isInteger(n) || n < 1 || n > 39) || new Set(ns).size !== 5) {
-      throw new Error('開獎號碼必須是01～39之間不重複的5個整數。');
+    const numbers = draw.numbers.map(Number);
+    if (numbers.some(n => !Number.isInteger(n) || n < 1 || n > 39) || new Set(numbers).size !== 5) {
+      throw new Error('開獎號碼必須為01～39且不得重複。');
     }
-    return { ...draw, numbers: ns.slice().sort((a, b) => a - b) };
+    return { ...draw, period: String(draw.period), numbers: numbers.slice().sort((a, b) => a - b) };
   }
 
-  function normalizeTriggers(triggers) {
+  function validateTriggers(triggers) {
     if (!Array.isArray(triggers) || triggers.length !== 5) throw new Error('D0必須包含5個觸發號碼。');
-    const nums = triggers.map(Number);
-    if (nums.some(n => !Number.isInteger(n) || n < 1 || n > 39) || new Set(nums).size !== 5) {
-      throw new Error('觸發號碼必須為01～39且不得重複。');
+    const numbers = triggers.map(Number);
+    if (numbers.some(n => !Number.isInteger(n) || n < 1 || n > 39) || new Set(numbers).size !== 5) {
+      throw new Error('D0觸發號碼必須為01～39且不得重複。');
     }
-    return nums.slice().sort((a, b) => a - b);
+    return numbers.slice().sort((a, b) => a - b);
   }
 
   function average(values) {
-    return values.length ? values.reduce((s, v) => s + v, 0) / values.length : 0;
+    return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
   }
 
-  // historyNewestFirst contains only draws older than D0, newest first.
-  function calculateAnyHit(historyNewestFirst, triggers, priorStrength) {
-    const cleanTriggers = normalizeTriggers(triggers);
-    const prior = Number(priorStrength);
-    const strength = Number.isFinite(prior) && prior >= 0 ? prior : 10;
-    const perTrigger = cleanTriggers.map(trigger => {
-      let samples = 0;
-      const counts = Object.fromEntries(NUMBERS.map(n => [n, 0]));
-      for (let i = 5; i < historyNewestFirst.length; i += 1) {
-        if (!historyNewestFirst[i].numbers.includes(trigger)) continue;
-        const followingFive = historyNewestFirst.slice(i - 5, i);
-        if (followingFive.length !== 5) continue;
-        samples += 1;
-        const union = new Set(followingFive.flatMap(d => d.numbers));
-        union.forEach(n => { counts[n] += 1; });
-      }
-      const rates = {};
-      NUMBERS.forEach(n => {
-        rates[n] = (counts[n] + strength * P5_ANY) / (samples + strength);
-      });
-      return { trigger, samples, counts, rates };
-    });
-    const scores = {};
-    NUMBERS.forEach(n => { scores[n] = average(perTrigger.map(x => x.rates[n])); });
-    return { type: 'any_hit', priorStrength: strength, priorProbability: P5_ANY, perTrigger, scores,
-      sampleCount: perTrigger.reduce((s, x) => s + x.samples, 0) };
-  }
-
-  function calculateAverageCount(historyNewestFirst, triggers, priorStrength) {
-    const cleanTriggers = normalizeTriggers(triggers);
-    const prior = Number(priorStrength);
-    const strength = Number.isFinite(prior) && prior >= 0 ? prior : 50;
-    const perTrigger = cleanTriggers.map(trigger => {
-      let samples = 0;
-      const counts = Object.fromEntries(NUMBERS.map(n => [n, 0]));
-      for (let i = 5; i < historyNewestFirst.length; i += 1) {
-        if (!historyNewestFirst[i].numbers.includes(trigger)) continue;
-        const followingFive = historyNewestFirst.slice(i - 5, i);
-        if (followingFive.length !== 5) continue;
-        samples += 1;
-        // Count every appearance in the five following draws (not a binary window hit).
-        followingFive.forEach(draw => draw.numbers.forEach(n => { counts[n] += 1; }));
-      }
-      const rates = {};
-      NUMBERS.forEach(n => {
-        rates[n] = (counts[n] + strength * P_SINGLE) / (5 * samples + strength);
-      });
-      return { trigger, samples, counts, rates };
-    });
-    const scores = {};
-    NUMBERS.forEach(n => { scores[n] = average(perTrigger.map(x => x.rates[n])); });
-    return { type: 'avg_count', priorStrength: strength, priorProbability: P_SINGLE, perTrigger, scores,
-      sampleCount: perTrigger.reduce((s, x) => s + x.samples, 0) };
-  }
-
-  function rankScores(scores) {
-    return NUMBERS.map(number => ({ number, score: scores[number] }))
-      .sort((a, b) => b.score - a.score || a.number - b.number)
-      .map((item, i) => ({ ...item, originalRank: i + 1 }));
-  }
-
-  function buildPrediction({ drawsNewestFirst, startIndex = 4, historyAnchorPeriod = '115000070' }) {
-    if (!Array.isArray(drawsNewestFirst) || drawsNewestFirst.length < 55) {
-      throw new Error('可用開獎資料不足，至少需要55期。');
+  /**
+   * Average Count score.
+   * historyNewestFirst must contain only draws before D0, newest first.
+   * For each historical occurrence of trigger t, count all appearances of
+   * candidate j in the following five chronological draws.
+   * rate(t,j) = (count + 50*(5/39)) / (5*samples + 50)
+   */
+  function calculateAverageCount(historyNewestFirst, triggers) {
+    if (!Array.isArray(historyNewestFirst) || historyNewestFirst.length < TRAIN_WINDOW) {
+      throw new Error(`v7.9需要D0以前至少${TRAIN_WINDOW}期歷史資料。`);
     }
-    const draws = drawsNewestFirst.map(validateDraw);
-    if (startIndex !== 4) throw new Error('即時預測固定使用最新資料倒數第5期作為D0。');
-    const d0 = draws[startIndex];
-    const d1ToD4 = draws.slice(0, 4).slice().reverse(); // chronological D1 -> D4
-    if (d1ToD4.length !== 4) throw new Error('尚未取得完整D1～D4，暫時不能預測D5。');
-    const excluded = new Set(d1ToD4.flatMap(d => d.numbers));
-    const historyBeforeD0 = draws.slice(startIndex + 1).filter(d => Number(d.period) >= Number(historyAnchorPeriod));
-    if (historyBeforeD0.length < 50) throw new Error('錨點期別之後的D0以前歷史不足50期。');
+    const cleanTriggers = validateTriggers(triggers);
+    const history = historyNewestFirst.slice(0, TRAIN_WINDOW).map(validateDraw);
+    const perTrigger = cleanTriggers.map(trigger => {
+      let samples = 0;
+      const counts = Object.fromEntries(NUMBERS.map(number => [number, 0]));
 
-    const models = [
-      {
-        id: 'v781_full_p10',
-        name: 'v7.8.1 正式版',
-        subtitle: '自研究錨點起全部可用歷史 · Prior10',
-        method: 'any_hit',
-        trainWindow: 'ALL',
-        prior: 10,
-        history: historyBeforeD0
-      },
-      {
-        id: 'v781_t49_p10',
-        name: 'v7.8.1 T49 對照版',
-        subtitle: '最近49期訓練 · Prior10',
-        method: 'any_hit',
-        trainWindow: 49,
-        prior: 10,
-        history: historyBeforeD0.slice(0, 49)
-      },
-      {
-        id: 'v79_avgcount_t49_p50',
-        name: 'v7.9-shadow Average Count',
-        subtitle: '最近49期訓練 · Average Count · Prior50',
-        method: 'avg_count',
-        trainWindow: 49,
-        prior: 50,
-        history: historyBeforeD0.slice(0, 49)
+      // The oldest four/five records do not have five known subsequent draws;
+      // therefore each trigger event is counted only when its complete window exists.
+      for (let index = 5; index < history.length; index += 1) {
+        if (!history[index].numbers.includes(trigger)) continue;
+        const followingFive = history.slice(index - 5, index);
+        if (followingFive.length !== 5) continue;
+        samples += 1;
+        followingFive.forEach(draw => draw.numbers.forEach(number => { counts[number] += 1; }));
       }
-    ];
 
-    const computedModels = models.map(config => {
-      const transition = config.method === 'avg_count'
-        ? calculateAverageCount(config.history, d0.numbers, config.prior)
-        : calculateAnyHit(config.history, d0.numbers, config.prior);
-      const ranking = rankScores(transition.scores);
-      const top15 = ranking.slice(0, TOP_K);
-      const survivors = top15.filter(x => !excluded.has(x.number))
-        .map((x, i) => ({ ...x, finalRank: i + 1 }));
-      return {
-        id: config.id, name: config.name, subtitle: config.subtitle,
-        method: config.method, trainWindow: config.trainWindow, prior: config.prior,
-        historyCount: config.history.length, triggerSamples: transition.perTrigger.map(x => ({ trigger: x.trigger, samples: x.samples })),
-        ranking, top15, survivors, picks: survivors.slice(0, PICK_COUNT).map(x => x.number),
-        scoreMap: transition.scores
-      };
+      const rates = {};
+      NUMBERS.forEach(number => {
+        rates[number] = (counts[number] + PRIOR_STRENGTH * PRIOR_SINGLE_DRAW_RATE) /
+          (5 * samples + PRIOR_STRENGTH);
+      });
+      return { trigger, samples, counts, rates };
     });
 
-    const targetPeriod = String(Number(d0.period) + 5);
-    const overlap = {};
-    computedModels.forEach(m => m.picks.forEach(n => { overlap[n] = (overlap[n] || 0) + 1; }));
+    const scores = {};
+    NUMBERS.forEach(number => { scores[number] = average(perTrigger.map(item => item.rates[number])); });
     return {
-      d0, d1ToD4, targetPeriod, latestDraw: draws[0], dataCount: draws.length,
-      historyAnchorPeriod, historyStart: historyBeforeD0.length ? historyBeforeD0[historyBeforeD0.length - 1].period : null,
-      historyEnd: historyBeforeD0.length ? historyBeforeD0[0].period : null,
-      historyCount: historyBeforeD0.length,
-      excludedNumbers: Array.from(excluded).sort((a, b) => a - b),
-      models: computedModels,
-      overlaps: Object.entries(overlap).map(([number, count]) => ({ number: Number(number), count })).sort((a,b) => b.count-a.count || a.number-b.number)
+      type: 'average_count',
+      trainWindow: TRAIN_WINDOW,
+      priorStrength: PRIOR_STRENGTH,
+      priorProbability: PRIOR_SINGLE_DRAW_RATE,
+      perTrigger,
+      scores,
+      sampleCount: perTrigger.reduce((sum, item) => sum + item.samples, 0)
     };
   }
 
-  const api = { NUMBERS, P5_ANY, P_SINGLE, calculateAnyHit, calculateAverageCount, rankScores, buildPrediction };
+  function rankScores(scores) {
+    return NUMBERS
+      .map(number => ({ number, score: scores[number] }))
+      .sort((a, b) => b.score - a.score || a.number - b.number)
+      .map((item, index) => ({ ...item, originalRank: index + 1 }));
+  }
+
+  function buildPrediction({ drawsNewestFirst, startIndex = 4, historyAnchorPeriod = '115000070' }) {
+    if (!Array.isArray(drawsNewestFirst) || drawsNewestFirst.length < TRAIN_WINDOW + EXCLUDE_DRAWS + 1) {
+      throw new Error(`目前有效開獎資料不足，v7.9至少需要${TRAIN_WINDOW + EXCLUDE_DRAWS + 1}期。`);
+    }
+    if (startIndex !== EXCLUDE_DRAWS) throw new Error('v7.9固定使用最新資料倒數第5期作為D0。');
+
+    const draws = drawsNewestFirst.map(validateDraw);
+    const d0 = draws[startIndex];
+    const d1ToD4 = draws.slice(0, EXCLUDE_DRAWS).reverse(); // chronological D1 -> D4
+    if (d1ToD4.length !== EXCLUDE_DRAWS) throw new Error('尚未取得完整D1～D4，暫時不能預測D5。');
+
+    const historyBeforeD0 = draws.slice(startIndex + 1)
+      .filter(draw => Number(draw.period) >= Number(historyAnchorPeriod));
+    if (historyBeforeD0.length < TRAIN_WINDOW) {
+      throw new Error(`D0以前可用歷史只有${historyBeforeD0.length}期，v7.9需要至少49期。`);
+    }
+    const trainingHistory = historyBeforeD0.slice(0, TRAIN_WINDOW);
+    const transition = calculateAverageCount(trainingHistory, d0.numbers);
+    const ranking = rankScores(transition.scores);
+    const top15 = ranking.slice(0, TOP_K);
+    const excludedNumbers = Array.from(new Set(d1ToD4.flatMap(draw => draw.numbers))).sort((a, b) => a - b);
+    const excluded = new Set(excludedNumbers);
+    const excludedMap = new Map();
+    d1ToD4.forEach(draw => draw.numbers.forEach(number => {
+      if (!excludedMap.has(number)) excludedMap.set(number, []);
+      excludedMap.get(number).push({ period: draw.period, date: draw.date });
+    }));
+    const eliminated = top15.filter(item => excluded.has(item.number)).map(item => ({
+      ...item,
+      appearedIn: excludedMap.get(item.number) || []
+    }));
+    const survivors = top15.filter(item => !excluded.has(item.number))
+      .map((item, index) => ({ ...item, finalRank: index + 1 }));
+    const targetPeriod = nextPeriodLabel(draws[0]);
+
+    return {
+      version: VERSION,
+      modelId: 'v79_avgcount_t49_p50',
+      modelName: '539 v7.9 · Average Count',
+      modelSubtitle: 'T49 · Prior50 · TOP15 · 排除D1～D4 · 固定選2碼',
+      d0,
+      d1ToD4,
+      latestDraw: draws[0],
+      targetPeriod,
+      dataCount: draws.length,
+      historyAnchorPeriod: String(historyAnchorPeriod),
+      historyCount: trainingHistory.length,
+      historyStart: trainingHistory[trainingHistory.length - 1].period,
+      historyEnd: trainingHistory[0].period,
+      trainingHistory,
+      excludedNumbers,
+      transition,
+      ranking,
+      top15,
+      eliminated,
+      survivors,
+      picks: survivors.slice(0, PICK_COUNT).map(item => item.number),
+      scoreMap: transition.scores
+    };
+  }
+
+  function nextPeriodLabel(latestDraw) {
+    const period = String(latestDraw.period || '');
+    if (!/^\d{9}$/.test(period)) return '下一期（期別待公布）';
+    const rocYear = Number(period.slice(0, 3));
+    const sequence = Number(period.slice(3));
+    // Daily539 period sequence is reset at a ROC-year boundary. Until the
+    // calendar rollover is reached, display the next sequence; at year end,
+    // keep a neutral label rather than inventing a period identifier.
+    if (latestDraw.date && /^\d{4}-\d{2}-\d{2}$/.test(latestDraw.date)) {
+      const latestDate = new Date(`${latestDraw.date}T12:00:00+08:00`);
+      const nextDate = new Date(latestDate.getTime() + 24 * 60 * 60 * 1000);
+      const nextRocYear = nextDate.getFullYear() - 1911;
+      if (Number.isFinite(nextRocYear) && nextRocYear !== rocYear) return '下一年度期別（待公布）';
+    }
+    return `${period.slice(0, 3)}${String(sequence + 1).padStart(6, '0')}`;
+  }
+
+  const api = {
+    VERSION, NUMBERS, TRAIN_WINDOW, PRIOR_STRENGTH, TOP_K, PICK_COUNT, EXCLUDE_DRAWS,
+    calculateAverageCount, rankScores, buildPrediction
+  };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
-  root.M539ThreeModel = api;
+  root.M539V79Model = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
