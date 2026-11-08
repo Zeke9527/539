@@ -1,4 +1,4 @@
-# 539 數據研究室｜v7.8（雙模式・TOP 15・固定選2碼）
+# 539 數據研究室｜v7.8.1（雙模式・TOP 15・固定選2碼・載入修正）
 
 GitHub Pages 靜態網站。提供兩種由歷史回測選出的固定預測模式，使用者可在介面中切換：
 
@@ -23,8 +23,8 @@ GitHub Pages 靜態網站。提供兩種由歷史回測選出的固定預測模�
 ## GitHub Pages 部署
 將本資料夾內所有檔案上傳到 GitHub repository 根目錄，於 Settings → Pages 選擇 Deploy from a branch、main、/(root)。網站不需要建置步驟或後端服務。
 
-## 資料來源與快取
-資料來源為台灣彩券今彩539歷史資料介面：`https://api.taiwanlottery.com/TLCAPIWeB/Lottery/Daily539Result?month=YYYY-MM&pageSize=500`。瀏覽器快取30分鐘；按更新資料可強制重新抓取。網站要求完整200期資料，若抓取不足或失敗會明確提示，不會把舊快取標示成最新資料。
+## 資料來源與載入備援
+資料來源為台灣彩券今彩539歷史資料介面：`https://api.taiwanlottery.com/TLCAPIWeB/Lottery/Daily539Result?month=YYYY-MM&pageSize=500`。網站隨附 `assets/history-data.js` 內建200期歷史資料（截至115000269，來源CSV僅含期別及號碼，因此備援日期顯示「—」），頁面啟動時會先立即顯示最近15期，再於背景平行更新最近月份資料。瀏覽器快取30分鐘；按更新資料可強制重新抓取。即時介面若因網路、CORS或格式變更失敗，仍可使用快取或內建資料，不會無限停在讀取畫面；備援資料會明確標示來源與最新期別，不會假裝是即時資料。
 
 ## 本機測試
 需要 Node.js 18 或更新版本：

@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0a1220">
   <meta name="description" content="539 數據研究室：顯示最近15期今彩539開獎資料，提供兩種固定模式：訓練35期排除3期，或訓練49期排除4期，皆輸出2碼候選。">
-  <title>539 數據研究室 v7.8｜雙模式・選2碼</title>
-  <link rel="stylesheet" href="assets/styles.css?v=7.8.0">
+  <title>539 數據研究室 v7.8.1｜雙模式・選2碼</title>
+  <link rel="stylesheet" href="assets/styles.css?v=7.8.1">
 </head>
 <body>
   <main class="page-shell">
@@ -146,11 +146,23 @@
     </section>
 
     <footer>
-      <span>539 DATA LAB · 個人統計研究工具，非台灣彩券官方網站 · <strong id="appVersion">v7.8.0</strong></span>
+      <span>539 DATA LAB · 個人統計研究工具，非台灣彩券官方網站 · <strong id="appVersion">v7.8.1</strong></span>
       <span>資料來源：<a href="https://www.taiwanlottery.com/lotto/history/history_result/" target="_blank" rel="noopener noreferrer">台灣彩券歷史開獎查詢</a></span>
     </footer>
   </main>
-  <script src="assets/model.js?v=7.8.0"></script>
-  <script src="assets/app.js?v=7.8.0"></script>
+  <script src="assets/history-data.js?v=7.8.1"></script>
+  <script src="assets/model.js?v=7.8.1"></script>
+  <script src="assets/app.js?v=7.8.1"></script>
+  <script>
+    window.setTimeout(function () {
+      if (window.M539AppBooted) return;
+      var box = document.getElementById('drawOptions');
+      var notice = document.getElementById('pickerNotice');
+      if (box) box.innerHTML = '<div class="loading-card">網頁程式沒有正常載入。請確認 assets 資料夾與 index.html 一起上傳，並使用 Ctrl+F5 強制重新整理。</div>';
+      if (notice) { notice.textContent = '程式載入逾時：請重新部署 v7.8.1 完整資料夾，勿只上傳 index.html。'; notice.className = 'notice error'; }
+      var status = document.getElementById('statusText');
+      if (status) status.textContent = '程式載入失敗';
+    }, 8000);
+  </script>
 </body>
 </html>
