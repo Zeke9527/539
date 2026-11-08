@@ -3,166 +3,100 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0a1220">
-  <meta name="description" content="539 數據研究室：顯示最近15期今彩539開獎資料，提供兩種固定模式：訓練35期排除3期，或訓練49期排除4期，皆輸出2碼候選。">
-  <title>539 數據研究室 v7.8.1｜雙模式・選2碼</title>
-  <link rel="stylesheet" href="assets/styles.css?v=7.8.1">
+  <meta name="theme-color" content="#0b1220">
+  <meta name="description" content="539三模型即時預測觀測台：自動讀取台灣彩券今彩539最新歷史資料，計算v7.8.1與v7.9-shadow三套固定模型的D5前兩碼預測。">
+  <title>539 DATA LAB｜三模型即時預測</title>
+  <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
-  <main class="page-shell">
+  <div class="app-shell">
     <header class="topbar">
-      <a class="brand" href="./" aria-label="539 數據研究室首頁">
-        <span class="brand-mark">539</span>
-        <span class="brand-text"><strong>539 DATA LAB</strong><small>TOP 15 · TWO MODES · 2 PICKS</small></span>
+      <a class="brand" href="./" aria-label="539 Data Lab 首頁">
+        <span class="brand-logo">539</span>
+        <span class="brand-copy"><strong>539 DATA LAB</strong><small>LIVE THREE-MODEL FORECAST</small></span>
       </a>
       <div class="top-actions">
-        <div class="status-pill"><i id="statusDot" class="status-dot loading"></i><span id="statusText">正在載入歷史資料</span></div>
-        <button id="refreshBtn" class="button button-outline" type="button">↻ 更新資料</button>
+        <div id="sourceBadge" class="source-badge loading"><span class="dot"></span><span id="sourceText">正在連線台灣彩券資料</span></div>
+        <button id="refreshBtn" class="btn btn-secondary" type="button">↻ 更新最新資料</button>
       </div>
     </header>
 
-    <section class="hero">
-      <div>
-        <div class="eyebrow">TAIWAN LOTTERY · DAILY 539</div>
-        <h1>選一期開獎號碼，<br><span>套用兩種固定模式之一。</span></h1>
-        <p class="hero-copy">提供兩種回測表現較佳的固定組合：模式一使用前35期訓練並排除後3期；模式二使用前49期訓練並排除後4期。兩種模式皆從TOP 15候選中保留2碼。</p>
-      </div>
-      <div class="hero-card">
-        <div class="hero-card-label">最新資料</div>
-        <div class="hero-latest"><strong id="latestPeriod">—</strong><span id="latestDate">等待資料</span></div>
-        <div class="hero-latest-balls" id="latestBalls"></div>
-        <div class="hero-foot"><span>目前載入期數</span><strong id="drawCount">—</strong></div>
-        <div class="hero-foot"><span>資料涵蓋區間</span><strong id="rangeText">—</strong></div>
-      </div>
-    </section>
-
-    <section class="panel picker-panel">
-      <div class="section-heading">
-        <div>
-          <div class="eyebrow">STEP 01 · CHOOSE A DRAW</div>
-          <h2>從最近15期選擇起始期</h2>
-          <p>點選你要當作起始期（D0）的那組五個號碼。系統會依目前模式顯示後續排除期數。</p>
+    <main>
+      <section class="intro-grid">
+        <div class="intro-copy">
+          <div class="eyebrow">TAIWAN LOTTERY · DAILY 539</div>
+          <h1>最新開獎資料，<span>自動產生三模型預測。</span></h1>
+          <p>開啟網頁後自動更新歷史開獎資料，依照已固定的模型規則，預測 D5 的兩個候選號碼。無須手動選期或按下分析。</p>
+          <div class="intro-meta"><span class="live-dot"></span><span id="updatedAt">等待資料更新…</span></div>
         </div>
-        <span class="fixed-chip">兩種固定模式 · 顯示最近15期</span>
-      </div>
-      <div id="drawOptions" class="draw-options" aria-label="最近15期開獎號碼選擇">
-        <div class="loading-card">正在讀取最近15期開獎號碼…</div>
-      </div>
-      <div id="selectionContext" class="selection-context">
-        <p class="muted">載入歷史資料後，這裡會顯示所選起始期及目前模式的後續開獎資料。</p>
-      </div>
-      <div id="pickerNotice" class="notice hidden" role="status"></div>
-    </section>
-
-    <section class="panel controls-panel">
-      <div class="section-heading">
-        <div>
-          <div class="eyebrow">STEP 02 · GENERATE</div>
-          <h2>選擇預測模式</h2>
-          <p>兩種模式皆使用相同TOP 15評分模型與先驗強度10，差異在訓練期數及排除期數。</p>
+        <div class="latest-card">
+          <div class="card-topline"><span>最新一期開獎</span><span class="tag tag-live">LATEST DRAW</span></div>
+          <div class="latest-period" id="latestPeriod">—</div>
+          <div class="latest-date" id="latestDate">尚未取得資料</div>
+          <div class="ball-row" id="latestBalls"><span class="skeleton-ball"></span><span class="skeleton-ball"></span><span class="skeleton-ball"></span><span class="skeleton-ball"></span><span class="skeleton-ball"></span></div>
+          <div class="latest-foot"><span>載入開獎期數</span><strong id="drawCount">—</strong></div>
+          <div class="latest-foot"><span>模型訓練起點</span><strong>115000070</strong></div>
         </div>
-        <span class="fixed-chip">TOP 15 · 固定選2碼</span>
-      </div>
-      <div class="mode-switch" role="group" aria-label="選擇預測模式">
-        <button class="mode-option active" type="button" data-mode="mode35" aria-pressed="true">
-          <span class="mode-kicker">模式一 · 回測組合 A</span>
-          <strong>訓練35期・排除3期</strong>
-          <small>每次選出2顆</small>
-        </button>
-        <button class="mode-option" type="button" data-mode="mode49" aria-pressed="false">
-          <span class="mode-kicker">模式二 · 回測組合 B</span>
-          <strong>訓練49期・排除4期</strong>
-          <small>每次選出2顆</small>
-        </button>
-      </div>
-      <div class="control-row">
-        <div class="selected-summary">
-          <span>目前選定起始期</span>
-          <strong id="selectedPeriodLabel">尚未選擇</strong>
-          <small id="selectedNumbersLabel">—</small>
+      </section>
+
+      <section id="errorPanel" class="alert alert-error hidden" role="alert"></section>
+      <section id="fallbackPanel" class="alert alert-warning hidden" role="status"></section>
+
+      <section class="section-block forecast-section">
+        <div class="section-heading">
+          <div><div class="eyebrow">NEXT DRAW · D5 FORECAST</div><h2>下一期預測結果</h2><p id="forecastSubtitle">等待最新 D0～D4 資料</p></div>
+          <div class="target-pill"><span>預測目標期別</span><strong id="targetPeriod">—</strong></div>
         </div>
-        <div class="count-control fixed-setting">
-          <label>目前模式設定</label>
-          <strong id="historySettingLabel">訓練35期</strong>
+
+        <div class="context-panel">
+          <div class="context-head"><div><strong>本次預測依據</strong><small>D0 為觸發期，D1～D4 為排除期</small></div><span class="tag">D0 → D5</span></div>
+          <div class="context-grid" id="contextGrid">
+            <div class="context-loading">載入最新五期開獎資料中…</div>
+          </div>
+          <div class="excluded-line"><span>共同排除號碼（D1～D4）</span><div id="excludedNumbers" class="excluded-balls">—</div></div>
         </div>
-        <div class="count-control fixed-setting">
-          <label>排除期數・輸出數量</label>
-          <strong id="excludeSettingLabel">排除3期・選2碼</strong>
+
+        <div class="model-grid" id="modelGrid">
+          <div class="model-loading">正在計算三種模型…</div>
         </div>
-        <button id="generateBtn" class="button button-gold generate-button" type="button" disabled>產生候選號碼</button>
-      </div>
-      <div class="method-strip">
-        <span><b>01</b> D0以前依模式訓練</span>
-        <span><b>02</b> 計算五個觸發號碼的轉移分數</span>
-        <span><b>03</b> 取前15名並排除指定期數</span>
-        <span><b>04</b> 依原排名保留前2碼</span>
-      </div>
-    </section>
+        <div class="overlap-panel" id="overlapPanel"></div>
+      </section>
 
-    <section id="resultPanel" class="panel result-panel hidden">
-      <div class="section-heading result-heading">
-        <div>
-          <div class="eyebrow">STEP 03 · RESULT</div>
-          <h2 id="resultTitle">本次候選號碼</h2>
-          <p id="resultSubtitle">依照目前模式設定排除後續開獎號碼，並保留排名前2碼。</p>
+      <section class="section-block detail-section">
+        <div class="section-heading">
+          <div><div class="eyebrow">MODEL INSPECTION</div><h2>模型計分與候選排名</h2><p>可切換模型查看39碼完整分數、TOP15與D1～D4排除狀態。</p></div>
+          <span class="tag">完整可追溯</span>
         </div>
-        <span id="resultMode" class="fixed-chip">TOP 15 · 2 PICKS</span>
-      </div>
-      <div id="resultBalls" class="result-balls"></div>
-      <div id="resultNotice" class="notice hidden" role="status"></div>
-      <div id="resultMetrics" class="metrics-grid"></div>
+        <div id="modelTabs" class="tabs" role="tablist" aria-label="模型選擇"></div>
+        <div id="modelDetail" class="detail-card"><div class="muted">取得資料後顯示模型詳細排名。</div></div>
+      </section>
 
-      <div class="result-section">
-        <div class="subheading"><div><h3 id="observedHeading">後續排除期開獎與排除紀錄</h3><p id="observedDescription">只要號碼在指定排除期數任一期出現，就從原始前15碼中移除；D0不參與排除。</p></div></div>
-        <div id="observedDraws" class="observed-grid"></div>
-      </div>
+      <section class="section-block archive-section">
+        <div class="section-heading">
+          <div><div class="eyebrow">LOCAL FORECAST LEDGER</div><h2>本機預測封存紀錄</h2><p>首次計算時會在此瀏覽器保存每期三模型的兩碼結果，不會因重新整理而覆寫舊紀錄。</p></div>
+          <button id="exportBtn" class="btn btn-secondary" type="button">匯出預測紀錄 CSV</button>
+        </div>
+        <div class="table-wrap"><table class="archive-table"><thead><tr><th>預測時間</th><th>目標期別</th><th>模型</th><th>兩碼預測</th><th>D0</th></tr></thead><tbody id="archiveBody"><tr><td colspan="5" class="empty-cell">尚無封存紀錄</td></tr></tbody></table></div>
+        <p class="footnote">封存紀錄僅儲存在目前瀏覽器的 localStorage，不會自動同步到其他裝置。建議定期匯出 CSV 備份。</p>
+      </section>
 
-      <div class="result-section">
-        <div class="subheading"><div><h3>排除後保留的候選號碼</h3><p>維持原始模型排序，不重新計算剩餘號碼的名次。</p></div><span id="survivorCount" class="count-chip">—</span></div>
-        <div id="survivorList" class="survivor-list"></div>
-      </div>
+      <section class="section-block backtest-section">
+        <div class="section-heading"><div><div class="eyebrow">HISTORICAL BASELINE</div><h2>既有136期回測參考</h2><p>這是之前同區間的固定兩碼回測成績，與本頁即時預測分開記錄。</p></div><span class="tag tag-muted">歷史資料，不是保證</span></div>
+        <div class="table-wrap"><table><thead><tr><th>模型</th><th>總命中碼數</th><th>至少中1碼</th><th>雙中</th><th>存活池 AUC</th></tr></thead><tbody>
+          <tr><td>v7.8.1 全歷史／Prior10</td><td>39</td><td>38 / 136（27.94%）</td><td>1</td><td>0.5087</td></tr>
+          <tr><td>v7.8.1 T49／Prior10</td><td>44</td><td>38 / 136（27.94%）</td><td>6</td><td>0.5267</td></tr>
+          <tr class="best-row"><td>v7.9-shadow Average Count T49／Prior50</td><td>53</td><td>48 / 136（35.29%）</td><td>5</td><td>0.5914</td></tr>
+        </tbody></table></div>
+        <p class="footnote">以上為探索性歷史回測；曾參與模型研究與選擇，並非完全獨立的前瞻盲測。v7.9-shadow 仍是研究影子模型，未取代正式版。</p>
+      </section>
 
-      <div class="result-section">
-        <div class="subheading"><div><h3>原始前15名完整排名</h3><p>分數是後五期至少出現一次的歷史平滑比例，不代表未來真實中獎機率。</p></div><span class="count-chip">TOP 15</span></div>
-        <div id="rankingTable" class="table-scroll"></div>
-      </div>
+      <section class="disclaimer"><strong>重要提醒：</strong>今彩539為隨機開獎。這些模型只依既定歷史統計規則產生排序，不會改變每個號碼的真實開獎機率，也不保證命中或獲利。資料若抓取失敗，頁面會明確標示使用快取，絕不把舊資料標成最新資料。開獎結果以台灣彩券公告為準。</section>
+    </main>
 
-      <div class="result-section">
-        <div class="subheading"><div><h3>五個觸發號碼的歷史樣本</h3><p>分別搜尋每個號碼在歷史上出現後，接下來五期出現過哪些號碼。</p></div></div>
-        <div id="sampleCards" class="sample-grid"></div>
-      </div>
-    </section>
+    <footer><span>539 DATA LAB · 個人統計研究工具，非台灣彩券官方網站</span><span>資料來源：<a href="https://www.taiwanlottery.com/lotto/history/history_result/" target="_blank" rel="noopener noreferrer">台灣彩券歷史開獎查詢</a></span></footer>
+  </div>
 
-    <section class="panel method-panel">
-      <div class="eyebrow">FIXED MODEL · HOW IT WORKS</div>
-      <h2>兩種固定模式共用的推算流程</h2>
-      <div class="method-flow">
-        <div class="method-step"><span>01</span><div><b>選定起始期 D0</b><p>從畫面最新15期中選擇一組開獎號碼，作為五個觸發號碼。</p></div></div>
-        <div class="method-step"><span>02</span><div><b>建立原始候選排名</b><p>只使用D0以前的歷史資料。分別計算五個觸發號碼出現後，未來五期每個號碼至少出現一次的比例；五個觸發號碼等權平均，加入理論基準平滑，再取前15名。</p></div></div>
-        <div class="method-step"><span>03</span><div><b>依模式排除後續期數</b><p>模式一排除D1～D3；模式二排除D1～D4。D0本身不排除，目標期不參與排名或排除。</p></div></div>
-        <div class="method-step"><span>04</span><div><b>固定輸出2碼</b><p>保留剩餘號碼的原始排名順序，選出前2碼。若剩餘號碼不足，會如實顯示實際可選數量，不補入已排除號碼。</p></div></div>
-      </div>
-      <div class="disclaimer"><strong>研究提醒：</strong>今彩539每期開獎是隨機事件。歷史轉移與排除規則不會改變下一期的真實開獎機率；必須等目前模式指定的3期或4期都已開出後，才能產生候選。請勿把歷史關聯當成保證命中或追號依據。</div>
-    </section>
-
-    <footer>
-      <span>539 DATA LAB · 個人統計研究工具，非台灣彩券官方網站 · <strong id="appVersion">v7.8.1</strong></span>
-      <span>資料來源：<a href="https://www.taiwanlottery.com/lotto/history/history_result/" target="_blank" rel="noopener noreferrer">台灣彩券歷史開獎查詢</a></span>
-    </footer>
-  </main>
-  <script src="assets/history-data.js?v=7.8.1"></script>
-  <script src="assets/model.js?v=7.8.1"></script>
-  <script src="assets/app.js?v=7.8.1"></script>
-  <script>
-    window.setTimeout(function () {
-      if (window.M539AppBooted) return;
-      var box = document.getElementById('drawOptions');
-      var notice = document.getElementById('pickerNotice');
-      if (box) box.innerHTML = '<div class="loading-card">網頁程式沒有正常載入。請確認 assets 資料夾與 index.html 一起上傳，並使用 Ctrl+F5 強制重新整理。</div>';
-      if (notice) { notice.textContent = '程式載入逾時：請重新部署 v7.8.1 完整資料夾，勿只上傳 index.html。'; notice.className = 'notice error'; }
-      var status = document.getElementById('statusText');
-      if (status) status.textContent = '程式載入失敗';
-    }, 8000);
-  </script>
+  <script src="assets/model.js"></script>
+  <script src="assets/app.js"></script>
 </body>
 </html>
