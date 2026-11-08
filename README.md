@@ -1,35 +1,49 @@
-# 539 DATA LAB｜三模型即時預測版
+# 539 DATA LAB｜v7.9 即時預測版
 
-這份部署包是給 `Zeke9527/539` 使用的 GitHub Pages 網站檔案。請將 ZIP 解壓後的**所有內容**上傳到 repository 的 `main` 分支根目錄，並允許覆蓋同名 `index.html`；新增 `assets/model.js`、`assets/app.js`、`assets/styles.css`。保留既有 `assets/history-data.js`，新版本不會將它當成即時資料來源。
+此網站已統一為 **唯一模型 v7.9 Average Count / T49 / Prior50**。頁面不再提供 v7.8.1 舊模式或多模型切換；所有預測、排名、說明、封存紀錄及 CSV 匯出均使用 v7.9。
 
-## 功能
-- 開啟首頁自動連線取得台灣彩券今彩539資料，直接預測下一期 D5。
-- 同時顯示三模型每期兩碼：v7.8.1 全歷史/Prior10、v7.8.1 T49/Prior10、v7.9-shadow Average Count T49/Prior50。
-- 三模型固定五個 D0 觸發號碼等權、TOP15、排除 D1～D4、保留前兩碼，同分小號優先。
-- 顯示最新一期、D0～D4、共同排除號碼、39碼排名、TOP15、排除結果及模型重複號碼。
-- 在同一瀏覽器 localStorage 首次封存每個目標期預測；可匯出 CSV。
-- 即時資料介面失敗時，只允許使用有時間戳的本機快取，並清楚警示；沒有有效資料就不輸出預測。
+## 固定模型規格
 
-## 部署
+- D0：最新資料倒數第5期，使用該期5個號碼作為等權觸發條件。
+- 訓練資料：D0以前最近49期（T49）。
+- 每個觸發號碼：找出T49中出現該觸發號碼且後續五期資料完整的所有事件。
+- Average Count：統計每個候選號碼在這些事件的後續五期中「總出現次數」，不是只計算五期內有無出現。
+- 單一觸發估計：`rate(t,j) = (candidate_count + 50 × (5/39)) / (5 × valid_trigger_samples + 50)`。
+- 五個D0觸發號碼等權平均成39碼分數。
+- 依分數由高至低排序；同分時小號優先。
+- 取TOP15，排除D1～D4任何一期已開出的號碼，保留原排序前2碼。
+- 目標：D5。
+
+## 網頁功能
+
+- 開啟即自動抓取台灣彩券今彩539資料並產生下一期v7.9預測。
+- 顯示最新一期、D0～D4、共同排除集合、兩個候選號碼。
+- 顯示39碼完整分數排名、TOP15與排除狀態。
+- 顯示每個D0觸發號碼的歷史有效樣本數。
+- 每個目標期首次預測會封存在目前瀏覽器localStorage，不因重新整理覆寫。
+- 可匯出v7.9預測封存CSV。
+- 網路更新失敗時，只有具時間戳的快取可作為備援，並會清楚警示；沒有可用資料就不產生預測。
+
+## GitHub Pages 部署
+
 1. 開啟 `https://github.com/Zeke9527/539`。
 2. 點選 **Add file → Upload files**。
-3. 將此 ZIP 解壓後，把 `index.html`、`.nojekyll`、`assets/`、`tests/`、`README.md` 的內容上傳到 repository 根目錄。
-4. 同名檔案選擇覆蓋；特別確認 `assets/model.js`、`assets/app.js`、`assets/styles.css` 有上傳成功。
-5. Commit 到 `main`。
-6. 到 **Settings → Pages** 確認來源為 `Deploy from a branch`、`main`、`/(root)`。
-7. 網站網址為 `https://zeke9527.github.io/539/`。
+3. 將本部署包內的 `index.html`、`assets/`、`tests/`、`.nojekyll`、`README.md` 上傳至repository根目錄。
+4. 覆蓋同名檔案，尤其要確認 `assets/model.js`、`assets/app.js`、`assets/styles.css` 三個檔案一併更新。
+5. Commit至 `main`。
+6. `Settings → Pages` 選擇 `Deploy from a branch`、`main`、`/(root)`。
+7. 網站網址：`https://zeke9527.github.io/539/`。
 
 ## 本機測試
+
 需要 Node.js 18+：
 
 ```bash
 node tests/model.test.cjs
 ```
 
-測試以封存的201期資料確認三模型在目標115000271的結果為：
-- v7.8.1 全歷史/Prior10：25、30
-- v7.8.1 T49/Prior10：30、17
-- v7.9-shadow Average Count T49/Prior50：30、15
+以固定201期原始資料測試，v7.9應還原115000271封存預測：D0=115000266，D1～D4=115000267～270，選號為 **30、15**。
 
-## 資料源注意事項
-網站呼叫台灣彩券網站目前使用的 `Daily539Result` 月資料介面。此介面不是具長期版本相容承諾的開發者 API；若資料介面或 CORS 政策更動，網站會顯示錯誤或快取警告。模型輸出僅為歷史資料排序，不保證中獎或獲利。
+## 資料源與風險說明
+
+網站使用台灣彩券頁面目前使用的 `Daily539Result` 月資料介面。這不是有長期版本相容承諾的公開開發者API；若介面或CORS政策更動，網頁會明確顯示資料錯誤或快取警示。今彩539為隨機開獎，歷史統計排序不會改變號碼的真實開獎機率，也不保證命中或獲利。

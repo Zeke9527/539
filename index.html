@@ -4,16 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b1220">
-  <meta name="description" content="539三模型即時預測觀測台：自動讀取台灣彩券今彩539最新歷史資料，計算v7.8.1與v7.9-shadow三套固定模型的D5前兩碼預測。">
-  <title>539 DATA LAB｜三模型即時預測</title>
-  <link rel="stylesheet" href="assets/styles.css">
+  <meta name="description" content="539 v7.9 即時預測：自動讀取台灣彩券今彩539最新歷史資料，使用 Average Count、T49、Prior50、TOP15 與 D1～D4 排除，產生 D5 前兩碼。">
+  <title>539 DATA LAB｜v7.9 即時預測</title>
+  <link rel="stylesheet" href="assets/styles.css?v=7.9.0">
 </head>
 <body>
   <div class="app-shell">
     <header class="topbar">
       <a class="brand" href="./" aria-label="539 Data Lab 首頁">
         <span class="brand-logo">539</span>
-        <span class="brand-copy"><strong>539 DATA LAB</strong><small>LIVE THREE-MODEL FORECAST</small></span>
+        <span class="brand-copy"><strong>539 DATA LAB</strong><small>v7.9 · AVERAGE COUNT · T49 / PRIOR50</small></span>
       </a>
       <div class="top-actions">
         <div id="sourceBadge" class="source-badge loading"><span class="dot"></span><span id="sourceText">正在連線台灣彩券資料</span></div>
@@ -25,8 +25,8 @@
       <section class="intro-grid">
         <div class="intro-copy">
           <div class="eyebrow">TAIWAN LOTTERY · DAILY 539</div>
-          <h1>最新開獎資料，<span>自動產生三模型預測。</span></h1>
-          <p>開啟網頁後自動更新歷史開獎資料，依照已固定的模型規則，預測 D5 的兩個候選號碼。無須手動選期或按下分析。</p>
+          <h1>最新開獎資料，<span>自動產生 v7.9 預測。</span></h1>
+          <p>開啟網頁後自動更新歷史開獎資料，全網站統一使用 v7.9 Average Count：最近49期訓練、Prior50、TOP15、排除D1～D4，保留前兩碼。無須手動選期或按下分析。</p>
           <div class="intro-meta"><span class="live-dot"></span><span id="updatedAt">等待資料更新…</span></div>
         </div>
         <div class="latest-card">
@@ -35,7 +35,8 @@
           <div class="latest-date" id="latestDate">尚未取得資料</div>
           <div class="ball-row" id="latestBalls"><span class="skeleton-ball"></span><span class="skeleton-ball"></span><span class="skeleton-ball"></span><span class="skeleton-ball"></span><span class="skeleton-ball"></span></div>
           <div class="latest-foot"><span>載入開獎期數</span><strong id="drawCount">—</strong></div>
-          <div class="latest-foot"><span>模型訓練起點</span><strong>115000070</strong></div>
+          <div class="latest-foot"><span>資料涵蓋區間</span><strong id="rangeText">—</strong></div>
+          <div class="latest-foot"><span>固定模型設定</span><strong>T49 · Prior50</strong></div>
         </div>
       </section>
 
@@ -44,12 +45,12 @@
 
       <section class="section-block forecast-section">
         <div class="section-heading">
-          <div><div class="eyebrow">NEXT DRAW · D5 FORECAST</div><h2>下一期預測結果</h2><p id="forecastSubtitle">等待最新 D0～D4 資料</p></div>
+          <div><div class="eyebrow">v7.9 · NEXT DRAW D5</div><h2>v7.9 下一期預測結果</h2><p id="forecastSubtitle">等待最新 D0～D4 資料</p></div>
           <div class="target-pill"><span>預測目標期別</span><strong id="targetPeriod">—</strong></div>
         </div>
 
         <div class="context-panel">
-          <div class="context-head"><div><strong>本次預測依據</strong><small>D0 為觸發期，D1～D4 為排除期</small></div><span class="tag">D0 → D5</span></div>
+          <div class="context-head"><div><strong>本次預測依據</strong><small>D0 五碼為等權觸發條件，D1～D4 為排除期</small></div><span class="tag">D0 → D5</span></div>
           <div class="context-grid" id="contextGrid">
             <div class="context-loading">載入最新五期開獎資料中…</div>
           </div>
@@ -57,46 +58,43 @@
         </div>
 
         <div class="model-grid" id="modelGrid">
-          <div class="model-loading">正在計算三種模型…</div>
+          <div class="model-loading">正在計算 v7.9 Average Count…</div>
         </div>
         <div class="overlap-panel" id="overlapPanel"></div>
       </section>
 
       <section class="section-block detail-section">
         <div class="section-heading">
-          <div><div class="eyebrow">MODEL INSPECTION</div><h2>模型計分與候選排名</h2><p>可切換模型查看39碼完整分數、TOP15與D1～D4排除狀態。</p></div>
+          <div><div class="eyebrow">MODEL INSPECTION</div><h2>v7.9 模型計分與候選排名</h2><p>查看39碼完整分數、TOP15、D1～D4排除狀態與存活排名。</p></div>
           <span class="tag">完整可追溯</span>
         </div>
-        <div id="modelTabs" class="tabs" role="tablist" aria-label="模型選擇"></div>
         <div id="modelDetail" class="detail-card"><div class="muted">取得資料後顯示模型詳細排名。</div></div>
       </section>
 
       <section class="section-block archive-section">
         <div class="section-heading">
-          <div><div class="eyebrow">LOCAL FORECAST LEDGER</div><h2>本機預測封存紀錄</h2><p>首次計算時會在此瀏覽器保存每期三模型的兩碼結果，不會因重新整理而覆寫舊紀錄。</p></div>
+          <div><div class="eyebrow">LOCAL FORECAST LEDGER</div><h2>v7.9 本機預測封存紀錄</h2><p>首次計算時會在此瀏覽器保存每期 v7.9 的兩碼結果，不會因重新整理而覆寫舊紀錄。</p></div>
           <button id="exportBtn" class="btn btn-secondary" type="button">匯出預測紀錄 CSV</button>
         </div>
-        <div class="table-wrap"><table class="archive-table"><thead><tr><th>預測時間</th><th>目標期別</th><th>模型</th><th>兩碼預測</th><th>D0</th></tr></thead><tbody id="archiveBody"><tr><td colspan="5" class="empty-cell">尚無封存紀錄</td></tr></tbody></table></div>
+        <div class="table-wrap"><table class="archive-table"><thead><tr><th>預測時間</th><th>目標期別</th><th>模型版本</th><th>兩碼預測</th><th>D0</th></tr></thead><tbody id="archiveBody"><tr><td colspan="5" class="empty-cell">尚無封存紀錄</td></tr></tbody></table></div>
         <p class="footnote">封存紀錄僅儲存在目前瀏覽器的 localStorage，不會自動同步到其他裝置。建議定期匯出 CSV 備份。</p>
       </section>
 
       <section class="section-block backtest-section">
-        <div class="section-heading"><div><div class="eyebrow">HISTORICAL BASELINE</div><h2>既有136期回測參考</h2><p>這是之前同區間的固定兩碼回測成績，與本頁即時預測分開記錄。</p></div><span class="tag tag-muted">歷史資料，不是保證</span></div>
-        <div class="table-wrap"><table><thead><tr><th>模型</th><th>總命中碼數</th><th>至少中1碼</th><th>雙中</th><th>存活池 AUC</th></tr></thead><tbody>
-          <tr><td>v7.8.1 全歷史／Prior10</td><td>39</td><td>38 / 136（27.94%）</td><td>1</td><td>0.5087</td></tr>
-          <tr><td>v7.8.1 T49／Prior10</td><td>44</td><td>38 / 136（27.94%）</td><td>6</td><td>0.5267</td></tr>
-          <tr class="best-row"><td>v7.9-shadow Average Count T49／Prior50</td><td>53</td><td>48 / 136（35.29%）</td><td>5</td><td>0.5914</td></tr>
+        <div class="section-heading"><div><div class="eyebrow">HISTORICAL BASELINE</div><h2>v7.9 歷史回測參考</h2><p>依先前固定136期、每期兩碼的共同區間回測結果，作為版本研究紀錄。</p></div><span class="tag tag-muted">歷史資料，不是保證</span></div>
+        <div class="table-wrap"><table><thead><tr><th>模型版本</th><th>測試期數</th><th>命中碼數</th><th>至少中1碼</th><th>雙中</th><th>存活池 AUC</th></tr></thead><tbody>
+          <tr class="best-row"><td><strong>v7.9 Average Count／T49／Prior50</strong></td><td>136</td><td>53</td><td>48 / 136（35.29%）</td><td>5</td><td>0.5914</td></tr>
         </tbody></table></div>
-        <p class="footnote">以上為探索性歷史回測；曾參與模型研究與選擇，並非完全獨立的前瞻盲測。v7.9-shadow 仍是研究影子模型，未取代正式版。</p>
+        <p class="footnote">此為探索性歷史回測，資料曾參與研究及模型選擇，不是獨立盲測。v7.9 是目前網站唯一運行版本；歷史回測表現不代表未來命中率或獲利保證。</p>
       </section>
 
       <section class="disclaimer"><strong>重要提醒：</strong>今彩539為隨機開獎。這些模型只依既定歷史統計規則產生排序，不會改變每個號碼的真實開獎機率，也不保證命中或獲利。資料若抓取失敗，頁面會明確標示使用快取，絕不把舊資料標成最新資料。開獎結果以台灣彩券公告為準。</section>
     </main>
 
-    <footer><span>539 DATA LAB · 個人統計研究工具，非台灣彩券官方網站</span><span>資料來源：<a href="https://www.taiwanlottery.com/lotto/history/history_result/" target="_blank" rel="noopener noreferrer">台灣彩券歷史開獎查詢</a></span></footer>
+    <footer><span>539 DATA LAB v7.9 · 個人統計研究工具，非台灣彩券官方網站</span><span>資料來源：<a href="https://www.taiwanlottery.com/lotto/history/history_result/" target="_blank" rel="noopener noreferrer">台灣彩券歷史開獎查詢</a></span></footer>
   </div>
 
-  <script src="assets/model.js"></script>
-  <script src="assets/app.js"></script>
+  <script src="assets/model.js?v=7.9.0"></script>
+  <script src="assets/app.js?v=7.9.0"></script>
 </body>
 </html>
