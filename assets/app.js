@@ -3,10 +3,10 @@
 
   const API_URL = 'https://api.taiwanlottery.com/TLCAPIWeB/Lottery/Daily539Result';
   const CONTENT_KEY = 'daily539Res';
-  const APP_VERSION = 'v7.8.0';
-  const CACHE_KEY = 'm539-final-v7-8-draw-cache';
+  const APP_VERSION = 'v7.8.1';
+  const CACHE_KEY = 'm539-final-v7-8-1-draw-cache';
   const CACHE_TTL_MS = 30 * 60 * 1000;
-  const REQUEST_TIMEOUT_MS = 15000;
+  const REQUEST_TIMEOUT_MS = 10000;
   const HISTORY_COUNT = 200;
   const PICKER_COUNT = 15;
   const MODES = {
@@ -15,11 +15,18 @@
   };
   let selectedModeId = 'mode35';
   const $ = id => document.getElementById(id);
+  if (!window.M539FinalModel) throw new Error('model.js 未載入');
+  window.M539AppBooted = true;
 
   let draws = [];
   let selectedPeriod = null;
   let lastResult = null;
   let isLoading = false;
+  let dataSourceWarning = '';
+
+  function addDataSourceWarning(message) {
+    return dataSourceWarning ? `${dataSourceWarning} ${message}` : message;
+  }
 
   if ($('appVersion')) $('appVersion').textContent = APP_VERSION;
 
@@ -82,9 +89,25 @@
   }
 
   function sortDraws(items) {
-    return Array.from(items.values()).sort((a, b) =>
-      b.date.localeCompare(a.date) || Number(b.period) - Number(a.period)
-    );
+    return Array.from(items.values()).sort((a, b) => {
+      if (a.date && b.date && a.date !== b.date) return b.date.localeCompare(a.date);
+      return Number(b.period) - Number(a.period);
+    });
+  }
+
+  function getBundledHistory() {
+    const bundled = window.M539BundledHistory;
+    if (!Array.isArray(bundled)) return [];
+    return bundled
+      .filter(draw => draw && /^\d+$/.test(String(draw.period)) && Array.isArray(draw.numbers) && draw.numbers.length === 5)
+      .map(draw => ({
+        period: String(draw.period),
+        date: String(draw.date || ''),
+        numbers: draw.numbers.map(Number).sort((a, b) => a - b)
+      }))
+      .filter(draw => draw.numbers.every(number => Number.isInteger(number) && number >= 1 && number <= 39) && new Set(draw.numbers).size === 5)
+      .sort((a, b) => Number(b.period) - Number(a.period))
+      .slice(0, HISTORY_COUNT);
   }
 
   function readCache() {
@@ -100,32 +123,55 @@
     catch (_) { /* Storage may be unavailable; in-memory data still works. */ }
   }
 
+  async function fetchRecentHistoryMonths(monthsBack) {
+    const cursor = new Date();
+    cursor.setDate(1);
+    const months = [];
+    for (let i = 0; i < monthsBack; i += 1) {
+      const date = new Date(cursor.getFullYear(), cursor.getMonth() - i, 1);
+      months.push(monthKey(date));
+    }
+
+    const results = await Promise.allSettled(months.map(month => fetchMonth(month)));
+    const byPeriod = new Map();
+    const errors = [];
+    for (let i = 0; i < results.length; i += 1) {
+      const result = results[i];
+      if (result.status === 'rejected') {
+        errors.push(`${months[i]}：${result.reason && result.reason.message ? result.reason.message : '讀取失敗'}`);
+        continue;
+      }
+      for (const row of result.value) {
+        const draw = normalizeDraw(row);
+        if (draw) byPeriod.set(draw.period, draw);
+      }
+    }
+    return { draws: sortDraws(byPeriod), errors };
+  }
+
   async function loadHistory(force) {
     const cached = readCache();
     if (!force && cached && Date.now() - cached.savedAt < CACHE_TTL_MS && cached.draws.length >= HISTORY_COUNT) {
       return { draws: cached.draws.slice(0, HISTORY_COUNT), source: 'cache', cachedAt: cached.savedAt };
     }
 
-    const byPeriod = new Map();
-    const cursor = new Date();
-    cursor.setDate(1);
-    let monthCount = 0;
-    while (byPeriod.size < HISTORY_COUNT && monthCount < 60) {
-      const rows = await fetchMonth(monthKey(cursor));
-      for (const row of rows) {
-        const draw = normalizeDraw(row);
-        if (draw) byPeriod.set(draw.period, draw);
-      }
-      cursor.setMonth(cursor.getMonth() - 1);
-      monthCount += 1;
+    // Recent 12 months should comfortably cover 200 Daily 539 draws. If the
+    // endpoint returns fewer records, expand once to 18 months. Requests are
+    // parallel so the picker no longer waits through a long month-by-month loop.
+    let fetched = await fetchRecentHistoryMonths(12);
+    if (fetched.draws.length > 0 && fetched.draws.length < HISTORY_COUNT) {
+      const expanded = await fetchRecentHistoryMonths(18);
+      if (expanded.draws.length > fetched.draws.length) fetched = expanded;
     }
 
-    const sorted = sortDraws(byPeriod);
-    if (sorted.length < HISTORY_COUNT) {
-      throw new Error(`目前只取得 ${sorted.length} 期有效紀錄；本版本要求完整 ${HISTORY_COUNT} 期歷史資料。資料不足時不會產生排名，以免悄悄改變模型結果。請稍後按「更新資料」重試。`);
+    if (fetched.draws.length < HISTORY_COUNT) {
+      const detail = fetched.errors.length ? `；部分月份讀取失敗：${fetched.errors.slice(0, 3).join('；')}` : '';
+      throw new Error(`即時資料目前取得 ${fetched.draws.length}/${HISTORY_COUNT} 期有效紀錄${detail}。已保留內建備援資料供查詢，請稍後再更新。`);
     }
-    writeCache(sorted);
-    return { draws: sorted.slice(0, HISTORY_COUNT), source: 'official-api', cachedAt: Date.now() };
+
+    const latest = fetched.draws.slice(0, HISTORY_COUNT);
+    writeCache(latest);
+    return { draws: latest, source: 'official-api', cachedAt: Date.now() };
   }
 
   function drawBallMarkup(number, extraClass) {
@@ -142,6 +188,11 @@
   }
 
   function getMode() { return MODES[selectedModeId]; }
+
+  // Resolve a draw's position in the newest-first history array.
+  function getStartIndex(period) {
+    return draws.findIndex(draw => String(draw.period) === String(period));
+  }
 
   function renderModeSettings() {
     const mode = getMode();
@@ -215,18 +266,18 @@
 
     const enoughHistory = draws.slice(index + 1).length >= mode.historyWindow;
     const eligible = later.length === mode.exclusionCount && enoughHistory;
-    $('generateBtn').disabled = !eligible || isLoading;
+    $('generateBtn').disabled = !eligible;
     if (!eligible) {
       const missing = Math.max(0, mode.exclusionCount - later.length);
       const warningText = missing > 0
         ? `你選擇的是 ${start.period} 期。此期之後目前只有 ${later.length} 期已開獎，還需要 ${missing} 期；等後續${mode.exclusionCount}期完整後，才能執行「排除後${mode.exclusionCount}期」並產生候選。`
         : `起始期以前的歷史資料不足；目前模式固定使用${mode.historyWindow}期訓練，至少需要${mode.historyWindow}期歷史資料。`;
-      showNotice(warningText, 'warning', 'pickerNotice');
+      showNotice(addDataSourceWarning(warningText), 'warning', 'pickerNotice');
     } else if (index === mode.exclusionCount) {
-      showNotice(`已選定 ${start.period} 期。後續${mode.exclusionCount}期已全部開出，目標期尚未開出；現在可以進行預測。`, 'info', 'pickerNotice');
+      showNotice(addDataSourceWarning(`已選定 ${start.period} 期。後續${mode.exclusionCount}期已全部開出，目標期尚未開出；現在可以進行預測。`), dataSourceWarning ? 'warning' : 'info', 'pickerNotice');
     } else {
       const target = draws[index - mode.exclusionCount - 1];
-      showNotice(`已選定 ${start.period} 期。這是歷史回放：排除後第${mode.exclusionCount + 1}期 ${target.period} 已有實際開獎資料，產生候選後可同時查看命中結果。`, 'info', 'pickerNotice');
+      showNotice(addDataSourceWarning(`已選定 ${start.period} 期。這是歷史回放：排除後第${mode.exclusionCount + 1}期 ${target.period} 已有實際開獎資料，產生候選後可同時查看命中結果。`), dataSourceWarning ? 'warning' : 'info', 'pickerNotice');
     }
   }
 
@@ -339,12 +390,13 @@
     if (isLoading) return;
     isLoading = true;
     $('refreshBtn').disabled = true;
-    $('generateBtn').disabled = true;
+    $('generateBtn').disabled = !selectedPeriod || !isEligibleIndex(getStartIndex(selectedPeriod));
     $('refreshBtn').textContent = '更新中…';
     setStatus('正在抓取台彩歷史資料', 'loading');
     try {
       const loaded = await loadHistory(Boolean(force));
       draws = loaded.draws;
+      dataSourceWarning = '';
       renderLatest();
       const recent = draws.slice(0, PICKER_COUNT);
       const defaultEligible = recent.find(draw => isEligibleIndex(getStartIndex(draw.period)));
@@ -362,8 +414,13 @@
     } catch (error) {
       console.error(error);
       const cached = readCache();
-      if (cached && Array.isArray(cached.draws) && cached.draws.length >= HISTORY_COUNT) {
-        draws = cached.draws.slice(0, HISTORY_COUNT);
+      const cachedDraws = cached && Array.isArray(cached.draws) && cached.draws.length >= HISTORY_COUNT
+        ? cached.draws.slice(0, HISTORY_COUNT)
+        : [];
+      const bundledDraws = getBundledHistory();
+      const fallbackDraws = cachedDraws.length ? cachedDraws : bundledDraws;
+      if (fallbackDraws.length >= HISTORY_COUNT) {
+        draws = fallbackDraws;
         renderLatest();
         const recent = draws.slice(0, PICKER_COUNT);
         const defaultEligible = recent.find(draw => isEligibleIndex(getStartIndex(draw.period)));
@@ -372,16 +429,21 @@
         }
         renderDrawOptions();
         renderSelectionContext();
-        setStatus('抓取失敗，改用快取', 'error');
-        showNotice(`即時抓取失敗：${error.message}。目前顯示快取資料，快取時間：${new Date(cached.savedAt).toLocaleString('zh-TW')}。請勿將快取誤認為最新開獎。`, 'warning', 'pickerNotice');
+        const sourceLabel = cachedDraws.length ? '瀏覽器快取' : '隨附內建資料';
+        setStatus(`即時更新失敗，使用${sourceLabel}`, 'error');
+        const freshness = cachedDraws.length
+          ? `快取時間：${new Date(cached.savedAt).toLocaleString('zh-TW')}`
+          : `內建資料最新期別：${draws[0].period}。內建備援資料沒有日期欄位，成功連線後會以台彩資料更新日期。`;
+        dataSourceWarning = `即時資料更新失敗，目前使用${sourceLabel}；${freshness}`;
+        showNotice(addDataSourceWarning(`仍可正常操作，背景更新失敗不會阻擋預測。`), 'warning', 'pickerNotice');
       } else {
         setStatus('資料載入失敗', 'error');
         draws = [];
         selectedPeriod = null;
         renderLatest();
         $('generateBtn').disabled = true;
-        $('drawOptions').innerHTML = '<div class="loading-card">尚未取得完整200期資料；資料不足時不會產生候選排名。</div>';
-        showNotice(`無法取得台彩歷史資料：${error.message}。此網站使用台彩網站資料介面，若跨網域政策或回應格式變更，可能需要更新抓取程式。`, 'error', 'pickerNotice');
+        $('drawOptions').innerHTML = '<div class="loading-card">目前無法取得歷史資料。請檢查網路連線，或稍後按「更新資料」重試。</div>';
+        showNotice(`無法取得台彩歷史資料：${error.message}。`, 'error', 'pickerNotice');
       }
     } finally {
       isLoading = false;
@@ -411,5 +473,16 @@
   $('refreshBtn').addEventListener('click', () => refreshData(true));
   $('generateBtn').addEventListener('click', runAnalysis);
   renderModeSettings();
+  draws = getBundledHistory();
+  if (draws.length >= HISTORY_COUNT) {
+    renderLatest();
+    const firstEligible = draws.slice(0, PICKER_COUNT).find(draw => isEligibleIndex(getStartIndex(draw.period)));
+    selectedPeriod = firstEligible ? firstEligible.period : null;
+    renderDrawOptions();
+    renderSelectionContext();
+    dataSourceWarning = `目前先使用內建備援資料（最新期別 ${draws[0].period}），背景仍在嘗試更新即時資料。`;
+    setStatus('已載入內建備援資料，背景更新中', 'loading');
+    showNotice(addDataSourceWarning('不必等待網路即可查看最近15期與產生候選。'), 'info', 'pickerNotice');
+  }
   refreshData(false);
 })();
