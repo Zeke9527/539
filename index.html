@@ -76,8 +76,15 @@
           <div><div class="eyebrow">LOCAL FORECAST LEDGER</div><h2>v7.9 本機預測封存紀錄</h2><p>首次計算時會在此瀏覽器保存每期 v7.9 的兩碼結果，不會因重新整理而覆寫舊紀錄。</p></div>
           <button id="exportBtn" class="btn btn-secondary" type="button">匯出預測紀錄 CSV</button>
         </div>
-        <div class="table-wrap"><table class="archive-table"><thead><tr><th>預測時間</th><th>目標期別</th><th>模型版本</th><th>兩碼預測</th><th>D0</th></tr></thead><tbody id="archiveBody"><tr><td colspan="5" class="empty-cell">尚無封存紀錄</td></tr></tbody></table></div>
-        <p class="footnote">封存紀錄僅儲存在目前瀏覽器的 localStorage，不會自動同步到其他裝置。建議定期匯出 CSV 備份。</p>
+        <div id="hitStats" class="hit-stats" aria-live="polite">
+          <div class="hit-stat"><span>已核對期數</span><strong id="checkedCount">0</strong></div>
+          <div class="hit-stat"><span>至少命中 1 碼</span><strong id="hitOneRate">—</strong><small id="hitOneCount">0 / 0 期</small></div>
+          <div class="hit-stat"><span>雙碼全中</span><strong id="hitTwoRate">—</strong><small id="hitTwoCount">0 / 0 期</small></div>
+          <div class="hit-stat"><span>累計命中號碼</span><strong id="totalHits">0</strong></div>
+        </div>
+        <div class="baseline-note">隨機選 2 碼的理論基準：至少中 1 碼 <strong>24.29%</strong>；雙碼全中 <strong>1.35%</strong>。上方為本機事前封存紀錄的實際統計，不是模型對單一期的保證機率。</div>
+        <div class="table-wrap"><table class="archive-table"><thead><tr><th>預測時間</th><th>目標期別</th><th>模型版本</th><th>兩碼預測</th><th>實際開獎</th><th>命中</th><th>D0</th></tr></thead><tbody id="archiveBody"><tr><td colspan="7" class="empty-cell">尚無封存紀錄</td></tr></tbody></table></div>
+        <p class="footnote">只核對本機已存在的事前封存紀錄；開獎後自動比對期別並保存結果，未封存期數不補算。紀錄僅儲存在目前瀏覽器 localStorage，不會自動同步其他裝置，建議定期匯出 CSV。</p>
       </section>
 
       <section class="section-block backtest-section">
