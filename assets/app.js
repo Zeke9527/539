@@ -156,13 +156,32 @@
     const byPeriod = new Map(draws.map(draw => [String(draw.period), draw]));
     let changed = false;
     ledger.forEach(row => {
-      // Only an already sealed prediction can be scored; never create a missing forecast retroactively.
+      // Migrate legacy snapshot aliases while preserving the original sealed picks.
+      if (row.target_period != null && row.targetPeriod == null) row.targetPeriod = row.target_period;
+      if (row.d0_period != null && row.d0Period == null) row.d0Period = row.d0_period;
+      if (row.saved_at != null && row.savedAt == null) row.savedAt = row.saved_at;
+      if (row.d0_numbers != null && !Array.isArray(row.d0Numbers)) {
+        row.d0Numbers = String(row.d0_numbers).trim().split(/[,\s]+/).map(Number).filter(Number.isInteger);
+      }
+      if (row.pick_1 != null && !Array.isArray(row.picks)) {
+        row.picks = [Number(row.pick_1), Number(row.pick_2)].filter(Number.isInteger);
+      }
+      // Only a pre-existing sealed prediction may be scored. Never synthesize missing forecasts.
       const actual = byPeriod.get(String(row.targetPeriod));
-      if (!actual || !Array.isArray(row.picks) || row.checkedAt) return;
-      const hits = row.picks.filter(number => actual.numbers.includes(Number(number)));
+      if (!actual || !Array.isArray(row.picks) || row.picks.length !== 2) return;
+      const actualIsValid = Array.isArray(row.actualNumbers) &&
+        row.actualNumbers.length === 5 &&
+        row.actualNumbers.every(n => actual.numbers.includes(Number(n)));
+      const hitNumbers = row.picks.filter(number => actual.numbers.includes(Number(number)));
+      const isCurrent = actualIsValid &&
+        Array.isArray(row.hitNumbers) &&
+        row.hitNumbers.length === hitNumbers.length &&
+        row.hitNumbers.every((n, i) => Number(n) === hitNumbers[i]) &&
+        Number(row.hitCount) === hitNumbers.length;
+      if (isCurrent && row.checkedAt) return;
       row.actualNumbers = actual.numbers.slice();
-      row.hitNumbers = hits.slice();
-      row.hitCount = hits.length;
+      row.hitNumbers = hitNumbers.slice();
+      row.hitCount = hitNumbers.length;
       row.checkedAt = new Date().toISOString();
       changed = true;
     });
@@ -257,7 +276,7 @@
         : '<span class="pending-result">待開獎／待核對</span>';
       const hitMarkup = hitCount === null ? '<span class="pending-result">—</span>'
         : `<span class="hit-result ${hitCount > 0 ? 'hit-positive' : 'hit-zero'}">${hitCount} 碼</span>`;
-      return `<tr><td>${escapeHtml(formatLocalTime(row.savedAt))}</td><td>${escapeHtml(row.targetPeriod)}</td><td><strong>v7.9 Average Count</strong></td><td><span class="archive-picks">${row.picks.map(number => `<span class="archive-pick">${pad2(number)}</span>`).join('')}</span></td><td>${actualMarkup}</td><td>${hitMarkup}</td><td>${escapeHtml(row.d0Period)}</td></tr>`;
+      return `<tr><td>${escapeHtml(formatLocalTime(row.savedAt))}</td><td>${escapeHtml(row.targetPeriod)}</td><td><strong>v7.9 Average Count</strong></td><td><span class="archive-picks">${(Array.isArray(row.picks) ? row.picks : []).map(number => `<span class="archive-pick">${pad2(number)}</span>`).join('')}</span></td><td>${actualMarkup}</td><td>${hitMarkup}</td><td>${escapeHtml(row.d0Period)}</td></tr>`;
     }).join('') : '<tr><td colspan="7" class="empty-cell">尚無封存紀錄</td></tr>';
   }
   function csvEscape(value) { return `"${String(value ?? '').replace(/"/g, '""')}"`; }
@@ -267,12 +286,12 @@
     const headers = ['version','saved_at','target_period','d0_period','d0_numbers','pick_1','pick_2','actual_numbers','hit_numbers','hit_count','checked_at','train_window','prior_strength','top15','survivors','history_start','history_end','data_count'];
     const lines = [headers.join(',')];
     ledger.forEach(row => lines.push([
-      row.version, row.savedAt, row.targetPeriod, row.d0Period, row.d0Numbers.map(pad2).join(' '),
+      row.version, row.savedAt, row.targetPeriod, row.d0Period, (Array.isArray(row.d0Numbers) ? row.d0Numbers : []).map(pad2).join(' '),
       row.picks[0] ? pad2(row.picks[0]) : '', row.picks[1] ? pad2(row.picks[1]) : '',
       Array.isArray(row.actualNumbers) ? row.actualNumbers.map(pad2).join(' ') : '',
       Array.isArray(row.hitNumbers) ? row.hitNumbers.map(pad2).join(' ') : '',
       Number.isInteger(row.hitCount) ? row.hitCount : '', row.checkedAt || '',
-      49, 50, row.top15.map(pad2).join(' '), row.survivors.map(pad2).join(' '),
+      49, 50, (Array.isArray(row.top15) ? row.top15 : []).map(pad2).join(' '), (Array.isArray(row.survivors) ? row.survivors : []).map(pad2).join(' '),
       row.historyStart, row.historyEnd, row.dataCount
     ].map(csvEscape).join(',')));
     const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
