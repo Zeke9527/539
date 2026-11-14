@@ -193,10 +193,12 @@
   function summarizeLedger(rows) {
     const checked = rows.filter(row => Number.isInteger(row.hitCount));
     const count = checked.length;
-    const oneOrMore = checked.filter(row => row.hitCount >= 1).length;
+    const zero = checked.filter(row => row.hitCount === 0).length;
+    const one = checked.filter(row => row.hitCount === 1).length;
     const two = checked.filter(row => row.hitCount === 2).length;
+    const oneOrMore = one + two;
     const total = checked.reduce((sum, row) => sum + row.hitCount, 0);
-    return { count, oneOrMore, two, total };
+    return { count, zero, one, oneOrMore, two, total };
   }
   function renderHitStats(ledger) {
     const stats = summarizeLedger(ledger);
@@ -207,6 +209,14 @@
     $('hitTwoRate').textContent = rate(stats.two);
     $('hitTwoCount').textContent = `${stats.two} / ${stats.count} 期`;
     $('totalHits').textContent = String(stats.total);
+    $('modelZeroRate').textContent = rate(stats.zero);
+    $('modelZeroCount').textContent = `${stats.zero} / ${stats.count} 期`;
+    $('modelOneRate').textContent = rate(stats.one);
+    $('modelOneCount').textContent = `${stats.one} / ${stats.count} 期`;
+    $('modelTwoRate').textContent = rate(stats.two);
+    $('modelTwoCount').textContent = `${stats.two} / ${stats.count} 期`;
+    $('modelAtLeastOneRate').textContent = rate(stats.oneOrMore);
+    $('modelAtLeastOneCount').textContent = `${stats.oneOrMore} / ${stats.count} 期`;
   }
 
   function drawBallMarkup(number, className = '') {

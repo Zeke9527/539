@@ -31,3 +31,15 @@
 .hit-positive{background:rgba(117,216,170,.12);border:1px solid rgba(117,216,170,.25);color:#9ce3bd}
 .hit-zero{background:rgba(255,129,138,.09);border:1px solid rgba(255,129,138,.2);color:#ffadb3}
 @media(max-width:700px){.hit-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.hit-stat{padding:11px 12px}.hit-stat strong{font-size:21px}}
+
+/* Random baseline vs observed v7.9 hit-rate comparison */
+.probability-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:16px 0 10px}
+.probability-card{background:linear-gradient(145deg,#182942,#121d30);border:1px solid #2b3d57;border-radius:13px;padding:16px}
+.probability-card h3{margin:0 0 4px;font-size:14px;color:#eaf1ff}
+.probability-subtitle{margin:0 0 13px;color:var(--muted);font-size:10px;line-height:1.5}
+.probability-row{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(139,164,198,.13);font-size:11px;color:#aebdd2}
+.probability-row strong{font-size:16px;color:#eaf1ff;font-variant-numeric:tabular-nums}
+.probability-row small{min-width:48px;text-align:right;color:#8fa2bd;font-size:9px}
+.probability-total{border-bottom:0;margin-top:3px;padding-top:12px;color:#d7e5fb;font-weight:800}
+.probability-total strong{color:#8ce0b4}
+@media(max-width:700px){.probability-grid{grid-template-columns:1fr}.probability-row{gap:6px}.probability-row strong{font-size:15px}}
