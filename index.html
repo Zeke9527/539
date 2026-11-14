@@ -87,12 +87,25 @@
         <p class="footnote">只核對本機已存在的事前封存紀錄；開獎後自動比對期別並保存結果，未封存期數不補算。紀錄僅儲存在目前瀏覽器 localStorage，不會自動同步其他裝置，建議定期匯出 CSV。</p>
       </section>
 
-      <section class="section-block backtest-section">
-        <div class="section-heading"><div><div class="eyebrow">HISTORICAL BASELINE</div><h2>v7.9 歷史回測參考</h2><p>依先前固定136期、每期兩碼的共同區間回測結果，作為版本研究紀錄。</p></div><span class="tag tag-muted">歷史資料，不是保證</span></div>
-        <div class="table-wrap"><table><thead><tr><th>模型版本</th><th>測試期數</th><th>命中碼數</th><th>至少中1碼</th><th>雙中</th><th>存活池 AUC</th></tr></thead><tbody>
-          <tr class="best-row"><td><strong>v7.9 Average Count／T49／Prior50</strong></td><td>136</td><td>53</td><td>48 / 136（35.29%）</td><td>5</td><td>0.5914</td></tr>
-        </tbody></table></div>
-        <p class="footnote">此為探索性歷史回測，資料曾參與研究及模型選擇，不是獨立盲測。v7.9 是目前網站唯一運行版本；歷史回測表現不代表未來命中率或獲利保證。</p>
+      <section class="section-block probability-section">
+        <div class="section-heading"><div><div class="eyebrow">PROBABILITY COMPARISON</div><h2>隨機中獎機率 vs v7.9 實測命中率</h2><p>以每期固定選 2 個號碼、開出 5 個號碼計算；v7.9 數據只統計本機已封存且已完成核對的預測。</p></div><span class="tag tag-muted">持續更新</span></div>
+        <div class="probability-grid">
+          <div class="probability-card">
+            <h3>一般隨機選號</h3><p class="probability-subtitle">每期任選 2 碼的理論機率</p>
+            <div class="probability-row"><span>0 碼命中</span><strong>75.71%</strong></div>
+            <div class="probability-row"><span>命中 1 碼</span><strong>22.94%</strong></div>
+            <div class="probability-row"><span>2 碼全中</span><strong>1.35%</strong></div>
+            <div class="probability-row probability-total"><span>至少命中 1 碼</span><strong>24.29%</strong></div>
+          </div>
+          <div class="probability-card model-probability-card">
+            <h3>v7.9 目前實測</h3><p class="probability-subtitle">依本機封存紀錄動態計算，非單期保證機率</p>
+            <div class="probability-row"><span>0 碼命中</span><strong id="modelZeroRate">—</strong><small id="modelZeroCount">0 / 0 期</small></div>
+            <div class="probability-row"><span>命中 1 碼</span><strong id="modelOneRate">—</strong><small id="modelOneCount">0 / 0 期</small></div>
+            <div class="probability-row"><span>2 碼全中</span><strong id="modelTwoRate">—</strong><small id="modelTwoCount">0 / 0 期</small></div>
+            <div class="probability-row probability-total"><span>至少命中 1 碼</span><strong id="modelAtLeastOneRate">—</strong><small id="modelAtLeastOneCount">0 / 0 期</small></div>
+          </div>
+        </div>
+        <p class="footnote">隨機基準依超幾何分布計算。v7.9 欄位是已發生的歷史實測比例，不是經校準的未來預測機率；樣本數較少時波動很大。只有事前封存且已開獎核對的期數納入統計。</p>
       </section>
 
       <section class="disclaimer"><strong>重要提醒：</strong>今彩539為隨機開獎。這些模型只依既定歷史統計規則產生排序，不會改變每個號碼的真實開獎機率，也不保證命中或獲利。資料若抓取失敗，頁面會明確標示使用快取，絕不把舊資料標成最新資料。開獎結果以台灣彩券公告為準。</section>
@@ -102,6 +115,6 @@
   </div>
 
   <script src="assets/model.js?v=7.9.0"></script>
-  <script src="assets/app.js?v=7.9.1"></script>
+  <script src="assets/app.js?v=7.9.2"></script>
 </body>
 </html>
