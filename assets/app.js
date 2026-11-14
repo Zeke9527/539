@@ -150,6 +150,46 @@
     catch (_) { /* best effort */ }
     return { saved: true, existing: snapshot };
   }
+  function reconcileLedgerWithDraws() {
+    const ledger = readLedger();
+    if (!ledger.length || !draws.length) return;
+    const byPeriod = new Map(draws.map(draw => [String(draw.period), draw]));
+    let changed = false;
+    ledger.forEach(row => {
+      // Only an already sealed prediction can be scored; never create a missing forecast retroactively.
+      const actual = byPeriod.get(String(row.targetPeriod));
+      if (!actual || !Array.isArray(row.picks) || row.checkedAt) return;
+      const hits = row.picks.filter(number => actual.numbers.includes(Number(number)));
+      row.actualNumbers = actual.numbers.slice();
+      row.hitNumbers = hits.slice();
+      row.hitCount = hits.length;
+      row.checkedAt = new Date().toISOString();
+      changed = true;
+    });
+    if (changed) {
+      try { localStorage.setItem(LEDGER_KEY, JSON.stringify(ledger.slice(0, MAX_LEDGER))); }
+      catch (_) { /* best effort */ }
+    }
+  }
+  function summarizeLedger(rows) {
+    const checked = rows.filter(row => Number.isInteger(row.hitCount));
+    const count = checked.length;
+    const oneOrMore = checked.filter(row => row.hitCount >= 1).length;
+    const two = checked.filter(row => row.hitCount === 2).length;
+    const total = checked.reduce((sum, row) => sum + row.hitCount, 0);
+    return { count, oneOrMore, two, total };
+  }
+  function renderHitStats(ledger) {
+    const stats = summarizeLedger(ledger);
+    const rate = value => stats.count ? `${(value / stats.count * 100).toFixed(2)}%` : '—';
+    $('checkedCount').textContent = String(stats.count);
+    $('hitOneRate').textContent = rate(stats.oneOrMore);
+    $('hitOneCount').textContent = `${stats.oneOrMore} / ${stats.count} 期`;
+    $('hitTwoRate').textContent = rate(stats.two);
+    $('hitTwoCount').textContent = `${stats.two} / ${stats.count} 期`;
+    $('totalHits').textContent = String(stats.total);
+  }
+
   function drawBallMarkup(number, className = '') {
     return `<span class="mini-ball ${className}">${pad2(number)}</span>`;
   }
@@ -208,19 +248,30 @@
   }
   function renderArchive() {
     const ledger = readLedger();
-    $('archiveBody').innerHTML = ledger.length ? ledger.slice(0, 60).map(row => `
-      <tr><td>${escapeHtml(formatLocalTime(row.savedAt))}</td><td>${escapeHtml(row.targetPeriod)}</td><td><strong>v7.9 Average Count</strong></td><td><span class="archive-picks">${row.picks.map(number => `<span class="archive-pick">${pad2(number)}</span>`).join('')}</span></td><td>${escapeHtml(row.d0Period)}</td></tr>`).join('')
-      : '<tr><td colspan="5" class="empty-cell">尚無封存紀錄</td></tr>';
+    renderHitStats(ledger);
+    $('archiveBody').innerHTML = ledger.length ? ledger.slice(0, 60).map(row => {
+      const actual = Array.isArray(row.actualNumbers) ? row.actualNumbers : null;
+      const hitCount = Number.isInteger(row.hitCount) ? row.hitCount : null;
+      const actualMarkup = actual
+        ? `<span class="actual-balls">${actual.map(number => `<span class="actual-ball">${pad2(number)}</span>`).join('')}</span>`
+        : '<span class="pending-result">待開獎／待核對</span>';
+      const hitMarkup = hitCount === null ? '<span class="pending-result">—</span>'
+        : `<span class="hit-result ${hitCount > 0 ? 'hit-positive' : 'hit-zero'}">${hitCount} 碼</span>`;
+      return `<tr><td>${escapeHtml(formatLocalTime(row.savedAt))}</td><td>${escapeHtml(row.targetPeriod)}</td><td><strong>v7.9 Average Count</strong></td><td><span class="archive-picks">${row.picks.map(number => `<span class="archive-pick">${pad2(number)}</span>`).join('')}</span></td><td>${actualMarkup}</td><td>${hitMarkup}</td><td>${escapeHtml(row.d0Period)}</td></tr>`;
+    }).join('') : '<tr><td colspan="7" class="empty-cell">尚無封存紀錄</td></tr>';
   }
   function csvEscape(value) { return `"${String(value ?? '').replace(/"/g, '""')}"`; }
   function exportLedger() {
     const ledger = readLedger();
     if (!ledger.length) { alert('目前沒有v7.9預測封存紀錄可以匯出。'); return; }
-    const headers = ['version','saved_at','target_period','d0_period','d0_numbers','pick_1','pick_2','train_window','prior_strength','top15','survivors','history_start','history_end','data_count'];
+    const headers = ['version','saved_at','target_period','d0_period','d0_numbers','pick_1','pick_2','actual_numbers','hit_numbers','hit_count','checked_at','train_window','prior_strength','top15','survivors','history_start','history_end','data_count'];
     const lines = [headers.join(',')];
     ledger.forEach(row => lines.push([
       row.version, row.savedAt, row.targetPeriod, row.d0Period, row.d0Numbers.map(pad2).join(' '),
       row.picks[0] ? pad2(row.picks[0]) : '', row.picks[1] ? pad2(row.picks[1]) : '',
+      Array.isArray(row.actualNumbers) ? row.actualNumbers.map(pad2).join(' ') : '',
+      Array.isArray(row.hitNumbers) ? row.hitNumbers.map(pad2).join(' ') : '',
+      Number.isInteger(row.hitCount) ? row.hitCount : '', row.checkedAt || '',
       49, 50, row.top15.map(pad2).join(' '), row.survivors.map(pad2).join(' '),
       row.historyStart, row.historyEnd, row.dataCount
     ].map(csvEscape).join(',')));
@@ -252,6 +303,7 @@
         $('fallbackPanel').classList.remove('hidden');
       }
       draws = updated;
+      reconcileLedgerWithDraws();
       forecast = window.M539V79Model.buildPrediction({ drawsNewestFirst: draws, startIndex: 4, historyAnchorPeriod: String(DATA_ANCHOR_PERIOD) });
       renderLatest();
       renderContext();
